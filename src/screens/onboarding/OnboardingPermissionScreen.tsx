@@ -3,7 +3,7 @@ import {
   View, StyleSheet, TouchableOpacity, Image, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import ExitIcon from '../../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { OnboardingStackParamList, RootStackParamList } from '../../navigation/types';
 import { useNavigation } from '@react-navigation/native';
@@ -17,7 +17,8 @@ import { scheduleCycle } from '../../notifications/scheduler';
 import type { UserProfile } from '../../storage/types';
 import { Button, Text } from '../../components/ui';
 import { ProgressBar } from '../../components/ProgressBar';
-import { Colors, Spacing } from '../../theme';
+import { OnboardingHead } from '../../components/OnboardingHead';
+import { Colors, useResponsive } from '../../theme';
 
 const BELL_IMAGE = require('../../../assets/images/onboarding_bell.png');
 
@@ -28,8 +29,10 @@ export default function OnboardingPermissionScreen({ route, navigation }: Props)
   const [loading, setLoading] = useState(false);
   const rootNav = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
   const insets = useSafeAreaInsets();
+  const { wp, hp } = useResponsive();
+
   // 피그마 exit y=65 → SafeAreaView inset 뺀 값
-  const backBtnTop = Math.max(0, 65 - insets.top);
+  const backBtnTop = Math.max(0, hp(65) - insets.top);
 
   const handleStart = async () => {
     setLoading(true);
@@ -71,41 +74,42 @@ export default function OnboardingPermissionScreen({ route, navigation }: Props)
         onPress={() => navigation.goBack()}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="arrow-back" size={24} color={Colors.darkText} />
+        <ExitIcon width={24} height={24} />
       </TouchableOpacity>
 
       {/* 프로그레스 */}
-      <View style={styles.progressWrap}>
+      <View style={[styles.progressWrap, { paddingTop: hp(29), paddingHorizontal: wp(20), marginBottom: hp(6) }]}>
         <ProgressBar current={4} total={4} />
       </View>
 
       {/* 제목 */}
-      <View style={styles.headWrap}>
-        <Text variant="display">{'걱정타임에\n알림을 보내드릴게요.'}</Text>
-        <Text variant="bodyMedium" color="darkGray">
-          걱정이 쌓이지 않도록 매일 털어놓아보아요
-        </Text>
-      </View>
+      <OnboardingHead
+        title={'걱정타임에\n알림을 보내드릴게요.'}
+        subtitle="걱정이 쌓이지 않도록 매일 털어놓아보아요"
+        style={{ paddingHorizontal: wp(20) }}
+      />
 
-      {/* 벨 이미지 */}
-      <View style={styles.imageWrap}>
-        <Image source={BELL_IMAGE} style={styles.bellImage} resizeMode="contain" />
+      {/* 벨 이미지 - 피그마 기준 y=311 절대 좌표 배치 */}
+      <View style={[styles.imageWrap, { top: hp(311), width: wp(301), height: hp(301) }]}>
+        <Image source={BELL_IMAGE} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
       </View>
 
       {/* 시작하기 버튼 (loading 시 스피너) */}
-      {loading ? (
-        <View style={[styles.button, styles.loadingButton]}>
-          <ActivityIndicator color={Colors.white} />
-        </View>
-      ) : (
-        <Button
-          variant="primary"
-          size="lg"
-          label="시작하기"
-          onPress={handleStart}
-          style={styles.button}
-        />
-      )}
+      <View style={[styles.buttonWrap, { bottom: hp(42) }]}>
+        {loading ? (
+          <View style={[styles.button, styles.loadingButton, { width: wp(326) }]}>
+            <ActivityIndicator color={Colors.white} />
+          </View>
+        ) : (
+          <Button
+            variant="primary"
+            size="lg"
+            label="시작하기"
+            onPress={handleStart}
+            style={{ width: wp(326) }}
+          />
+        )}
+      </View>
     </SafeAreaView>
   );
 }
@@ -113,31 +117,23 @@ export default function OnboardingPermissionScreen({ route, navigation }: Props)
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.white },
 
-  // 피그마 exit y=65 — paddingTop은 useSafeAreaInsets로 동적 계산
+  // 피그마 exit y=65 — paddingTop은 동적 계산
   backBtn: {
-    paddingLeft: Spacing.xxl, // 20
+    paddingLeft: 20,
     alignSelf: 'flex-start',
   },
-  // 피그마 progress y=118 (exit_end=89, gap 29), head y=150 (progress_end=146, gap 4)
-  progressWrap: {
-    paddingTop: 29,
-    paddingHorizontal: Spacing.xxl, // 20
-    marginBottom: Spacing.xxs, // 4
-  },
-  // 피그마 head h=97 (150→247), bell y=311 → gap 64
-  headWrap: {
-    paddingHorizontal: 30,
-    gap: Spacing.xs, // 8
-    marginBottom: 64,
+  progressWrap: {},
+  imageWrap: {
+    position: 'absolute',
+    alignSelf: 'center',
   },
 
-  imageWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  bellImage: { width: 301, height: 301 },
-
-  // 피그마 bottom-button y=702 → marginBottom 42
-  button: {
-    marginHorizontal: 17,
-    marginBottom: 42,
+  // 하단 버튼 wrap
+  buttonWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
   // loading 상태일 때 Button 자리에 같은 시각적 박스로 스피너 표시
   loadingButton: {

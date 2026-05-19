@@ -11,6 +11,10 @@ import NicknameChangeScreen from '../screens/NicknameChangeScreen';
 import CopywriteScreen from '../screens/CopywriteScreen';
 import NotWorryTimeSheet from '../screens/NotWorryTimeSheet';
 import DelayPickerScreen from '../screens/DelayPickerScreen';
+import DelayConfirmSheet from '../screens/DelayConfirmSheet';
+import DelaySetSheet from '../screens/DelaySetSheet';
+import RewardScreen from '../screens/RewardScreen';
+import WorryCheckInSheet from '../screens/WorryCheckInSheet';
 import { isOnboardingDone, initSchema } from '../storage/storage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -49,6 +53,30 @@ export default function RootNavigator() {
         name="DelayPicker"
         component={DelayPickerScreen}
         options={{ presentation: 'modal' }}
+      />
+      <Stack.Screen
+        name="DelayConfirm"
+        component={DelayConfirmSheet}
+        options={{ presentation: 'transparentModal', animation: 'fade' }}
+      />
+      <Stack.Screen
+        name="DelaySet"
+        component={DelaySetSheet}
+        options={{ presentation: 'transparentModal', animation: 'fade' }}
+      />
+      <Stack.Screen
+        name="Reward"
+        component={RewardScreen}
+        options={{ animation: 'fade', gestureEnabled: false }}
+      />
+      <Stack.Screen
+        name="WorryCheckIn"
+        component={WorryCheckInSheet}
+        options={{
+          presentation: 'transparentModal',
+          animation: 'fade',
+          gestureEnabled: false,
+        }}
       />
     </Stack.Navigator>
   );

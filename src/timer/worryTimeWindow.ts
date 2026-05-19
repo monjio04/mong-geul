@@ -10,11 +10,12 @@ export interface WorryTime {
 }
 
 // ─── 기본 상수 ────────────────────────────────────────────
-const SECONDARY_ALARM_OFFSET_MIN = 30;   // 1차 알림 후 30분 → 2차 알림
+// TODO: 테스트 후 30으로 환원
+const SECONDARY_ALARM_OFFSET_MIN = 1;    // [임시 테스트] 1차 알림 후 1분 → 2차 알림 (원래: 30)
 const LOCK_OFFSET_MIN = 60;              // 2차 알림 후 1시간 → 잠금
 const DELAY_LOCK_OFFSET_MIN = 30;        // 미루기 재알림 후 30분 → 잠금
 const MAX_DELAY_HOUR = 4;               // 미루기 상한: 익일 04:00
-const MIN_DELAY_OFFSET_MIN = 30;         // 미루기 하한: 현재 시각 +30분
+const MIN_DELAY_OFFSET_MIN = 10;         // 미루기 하한: 현재 시각 +10분
 
 /**
  * 특정 날짜 + 시각을 Date 객체로 반환
@@ -81,15 +82,17 @@ export function isInWorryWindow(now: Date, primaryAlarm: Date): boolean {
 
 /**
  * 미루기 picker 선택 가능 범위
- * min: now + 30분
- * max: 익일 04:00
+ * min: now + 10분
+ * max: 다음 04:00 (현재가 04:00 이전이면 오늘 04:00, 이후면 익일)
  */
 export function getDelayPickerRange(now: Date): { min: Date; max: Date } {
   const min = new Date(now.getTime() + MIN_DELAY_OFFSET_MIN * 60 * 1000);
 
-  // 익일 04:00
+  // 가장 가까운 04:00 — 현재가 04:00 이전이면 오늘 04:00, 이후면 익일 04:00
   const max = new Date(now);
-  max.setDate(max.getDate() + 1);
+  if (now.getHours() >= MAX_DELAY_HOUR) {
+    max.setDate(max.getDate() + 1);
+  }
   max.setHours(MAX_DELAY_HOUR, 0, 0, 0);
 
   return { min, max };

@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
 import { View, StyleSheet, TouchableOpacity } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import ExitIcon from '../../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { OnboardingStackParamList } from '../../navigation/types';
 import { Button, Text } from '../../components/ui';
 import { ProgressBar } from '../../components/ProgressBar';
-import { Colors, Radii, Spacing } from '../../theme';
+import { OnboardingHead } from '../../components/OnboardingHead';
+import { Colors, Radii, useResponsive } from '../../theme';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'OnboardingSurvey'>;
 
@@ -29,8 +30,10 @@ export default function OnboardingSurveyScreen({ route, navigation }: Props) {
   const { nickname } = route.params;
   const [selected, setSelected] = useState<string>(OPTIONS[0].id);
   const insets = useSafeAreaInsets();
+  const { wp, hp } = useResponsive();
+  
   // 피그마 exit y=65 → SafeAreaView inset 뺀 값
-  const backBtnTop = Math.max(0, 65 - insets.top);
+  const backBtnTop = Math.max(0, hp(65) - insets.top);
 
   const handleNext = () => {
     const option = OPTIONS.find((o) => o.id === selected)!;
@@ -49,47 +52,62 @@ export default function OnboardingSurveyScreen({ route, navigation }: Props) {
         onPress={() => navigation.goBack()}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="arrow-back" size={24} color={Colors.darkText} />
+        <ExitIcon width={24} height={24} />
       </TouchableOpacity>
 
       {/* 프로그레스 */}
-      <View style={styles.progressWrap}>
+      <View style={[styles.progressWrap, { paddingTop: hp(29), paddingHorizontal: wp(20), marginBottom: hp(9) }]}>
         <ProgressBar current={2} total={4} />
       </View>
 
       {/* 제목 */}
-      <View style={styles.headWrap}>
-        <Text variant="display">
-          {`하루 중 오롯이 ${nickname}님을 위해\n쓸 수 있는 시간은 언제인가요?`}
-        </Text>
-      </View>
+      <OnboardingHead
+        title={`하루 중 오롯이 ${nickname}님을 위해\n쓸 수 있는 시간은 언제인가요?`}
+        style={[styles.headWrap, { paddingHorizontal: wp(20), marginBottom: hp(31) }]}
+      />
 
-      {/* 선택지 — 피그마 selection 컴포넌트 (130:399), status=idle/selected */}
-      <View style={styles.optionList}>
+      {/* 선택지 — 피그마 selection 컴포넌트 */}
+      <View style={[styles.optionList, { paddingHorizontal: wp(24), gap: hp(12) }]}>
         {OPTIONS.map((opt) => {
           const isSelected = selected === opt.id;
           return (
             <TouchableOpacity
               key={opt.id}
-              style={[styles.option, isSelected && styles.optionSelected]}
+              style={[
+                styles.option,
+                { 
+                  width: wp(313),
+                  height: hp(63), 
+                  paddingTop: hp(10),
+                  paddingRight: wp(10), 
+                  paddingBottom: hp(10),
+                  paddingLeft: wp(15), 
+                  gap: wp(15) 
+                },
+                isSelected && styles.optionSelected
+              ]}
               onPress={() => setSelected(opt.id)}
               activeOpacity={0.7}
             >
               <Text style={styles.emoji}>{opt.emoji}</Text>
-              <Text variant="body">{opt.label}</Text>
+              <Text variant="body" style={{ fontWeight: '600' }}>
+                {opt.label}
+              </Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      {/* 하단 버튼 */}
-      <Button
-        variant="primary"
-        size="lg"
-        label="다음"
-        onPress={handleNext}
-        style={styles.button}
-      />
+      {/* 하단 버튼 — 화면 끝 42dp 위 */}
+      <View style={[styles.buttonWrap, { bottom: hp(42) }]}>
+        <Button
+          variant="primary"
+          size="lg"
+          label="다음"
+          onPress={handleNext}
+          style={{ width: wp(326) }}
+        />
+      </View>
     </SafeAreaView>
   );
 }
@@ -99,37 +117,19 @@ const styles = StyleSheet.create({
 
   // 피그마 exit y=65 — paddingTop은 useSafeAreaInsets로 동적 계산
   backBtn: {
-    paddingLeft: Spacing.xxl, // 20
+    paddingLeft: 20, // 인라인 적용 대신 StyleSheet에서 직접 wp를 쓰지 못하므로 나중에 View로 넘겨야 하지만 여기선 단순 유지
     alignSelf: 'flex-start',
   },
-  // 피그마 progress y=118 (exit_end=89, gap 29)
-  // 피그마 head y=155 (progress_end=146, gap 9)
-  progressWrap: {
-    paddingTop: 29,
-    paddingHorizontal: Spacing.xxl, // 20
-    marginBottom: 9,
-  },
-  // 피그마 head h=97 (텍스트 2줄 ~66dp + 빈 공간 31dp가 head 영역 안에 포함됨)
-  // RN에서 같은 시각 효과 — text 아래 빈 여백 31dp를 marginBottom으로 추가
-  headWrap: {
-    paddingHorizontal: 30,
-    marginBottom: 31,
-  },
-
-  // 선택 옵션 리스트
+  progressWrap: {},
+  headWrap: {},
   optionList: {
-    paddingHorizontal: Spacing.xxxl, // 24
-    gap: Spacing.md, // 12
     flex: 1,
   },
   option: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 15,
-    height: 63, // 피그마 selection h
     backgroundColor: Colors.lightGray200,
     borderRadius: Radii.md, // 12
-    paddingHorizontal: 15,
     borderWidth: 1,
     borderColor: 'transparent',
   },
@@ -138,9 +138,10 @@ const styles = StyleSheet.create({
   },
   emoji: { fontSize: 20 },
 
-  // 피그마 bottom-button y=702 → marginBottom 42
-  button: {
-    marginHorizontal: 17,
-    marginBottom: 42,
+  buttonWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
 });

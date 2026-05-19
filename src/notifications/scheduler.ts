@@ -2,14 +2,18 @@
  * 알림 스케줄링 모듈
  *
  * 알림 구조 (1사이클):
- *   [A] 1차 알림 — 설정 시각 (걱정 타임 활성화)
- *   [B] 2차 알림 — 1차 + 30분 (미루기 안내 포함)
- *   [C] 잠금 트리거 — 2차 + 1시간 (앱이 꺼져도 발화)
- *   [D] 타이머 종료 — 타이머 시작 시 별도 예약
+ *   [A] 1차 알림 — 설정 시각 (단순 알림, 탭 → 홈)
+ *   [B] 2차 알림 — 1차 + 30분 (액션 버튼 2개: 걱정타임 미루기 / 지금 작성하기)
  *
  * 미루기 추가 알림:
- *   [E] 재알림 — 사용자 지정 시각
- *   [F] 미루기 잠금 — 재알림 + 30분
+ *   [C] 재알림 — 사용자 지정 시각 (단순 알림, 탭 → 홈)
+ *
+ * 제거된 알림:
+ *   - LOCK (사이클 종료 알림) — 사용자 결정으로 제거
+ *   - DELAY_LOCK (미루기 잠금) — 제거
+ *   - TIMER_END (타이머 종료 알림) — 제거
+ *
+ * 호환성: TimerState 의 lockNotifId / timerEndNotifId 필드는 유지하되 항상 null.
  */
 
 import * as Notifications from 'expo-notifications';
@@ -17,14 +21,12 @@ import { Platform } from 'react-native';
 import {
   getNextPrimaryAlarm,
   getSecondaryAlarmTime,
-  getLockTime,
-  getDelayLockTime,
   type WorryTime,
 } from '../timer/worryTimeWindow';
+import { getUserProfile } from '../storage/storage';
 
 // ─── Android 알림 채널 ─────────────────────────────────────
-// HIGH importance → Doze 모드(폰 잠금/유휴 상태)에서도 정시 발화 시도
-// LOW/DEFAULT importance면 Doze 모드에 묶여서 지연 발생
+// HIGH importance → Doze 모드에서도 정시 발화 시도
 
 const CHANNEL_ID = 'worry-time-alarm';
 
@@ -33,8 +35,8 @@ export async function setupAndroidChannel(): Promise<void> {
 
   await Notifications.setNotificationChannelAsync(CHANNEL_ID, {
     name: '걱정 타임 알림',
-    description: '걱정 타임 시작/유예/잠금 알림',
-    importance: Notifications.AndroidImportance.HIGH,  // ← Doze 우회 핵심
+    description: '걱정 타임 시작/유예 알림',
+    importance: Notifications.AndroidImportance.HIGH,
     enableVibrate: true,
     vibrationPattern: [0, 250, 250, 250],
     sound: 'default',
@@ -58,12 +60,42 @@ export function initNotificationHandler() {
   });
 }
 
+// ─── 알림 카테고리 (액션 버튼) ──────────────────────────────
+// 2차 알림에 부착하는 액션 버튼 2개:
+//  - DELAY: "걱정타임 미루기" → App.tsx 핸들러가 홈 + DelayConfirmSheet 모달
+//  - START_NOW: "지금 작성하기" → App.tsx 핸들러가 홈 (active 상태)
+
+export const NOTIF_CATEGORY = {
+  WORRY_PROMPT: 'WORRY_PROMPT',
+} as const;
+
+export const NOTIF_ACTION = {
+  DELAY: 'DELAY',
+  START_NOW: 'START_NOW',
+} as const;
+
+async function registerNotificationCategories(): Promise<void> {
+  await Notifications.setNotificationCategoryAsync(NOTIF_CATEGORY.WORRY_PROMPT, [
+    {
+      identifier: NOTIF_ACTION.DELAY,
+      buttonTitle: '걱정타임 미루기',
+      options: { opensAppToForeground: true },
+    },
+    {
+      identifier: NOTIF_ACTION.START_NOW,
+      buttonTitle: '지금 작성하기',
+      options: { opensAppToForeground: true },
+    },
+  ]);
+}
+
 /**
- * 앱 시작 시 한 번 호출 — 핸들러 + Android 채널 동시 셋업
+ * 앱 시작 시 한 번 호출 — 핸들러 + 채널 + 카테고리 셋업
  */
 export async function initNotifications(): Promise<void> {
   initNotificationHandler();
   await setupAndroidChannel();
+  await registerNotificationCategories();
 }
 
 // ─── 알림 식별자 (data 필드로 구분) ────────────────────────
@@ -71,14 +103,12 @@ export async function initNotifications(): Promise<void> {
 export const NOTIF_TYPE = {
   PRIMARY: 'worry_primary',
   SECONDARY: 'worry_secondary',
-  LOCK: 'worry_lock',
-  TIMER_END: 'timer_end',
   DELAYED: 'worry_delayed',
-  DELAY_LOCK: 'worry_delay_lock',
 } as const;
 
 // ─── 1사이클 예약 ─────────────────────────────────────────
 
+// 호환성: lockNotifId 필드는 유지 (항상 null)
 export interface ScheduledIds {
   primaryNotifId: string | null;
   secondaryNotifId: string | null;
@@ -86,79 +116,60 @@ export interface ScheduledIds {
 }
 
 /**
- * 걱정 타임 1사이클 알림 3개 예약
- * 완료/잠금 시 cancelCycleNotifications()로 일괄 취소
+ * 걱정 타임 1사이클 알림 2개 예약 (1차 + 2차)
+ * 사용자 nickname 은 storage.getUserProfile() 에서 조회.
  */
 export async function scheduleCycle(worryTime: WorryTime): Promise<ScheduledIds> {
   const now = new Date();
   const primaryAlarm = getNextPrimaryAlarm(now, worryTime);
   const secondaryAlarm = getSecondaryAlarmTime(primaryAlarm);
-  const lockTrigger = getLockTime(primaryAlarm);
 
-  // 04:00 설정 시 2차 알림/잠금 여전히 예약 (미루기만 제외)
-  const [primaryId, secondaryId, lockId] = await Promise.all([
+  const profile = await getUserProfile();
+  const nickname = profile?.nickname ?? '회원';
+
+  const [primaryId, secondaryId] = await Promise.all([
     scheduleAt(primaryAlarm, {
-      title: '걱정 타임이에요 📓',
-      body: '지금 걱정을 꺼내볼 시간이에요.',
+      title: `${nickname}님, 오늘의 걱정을 꺼내볼 시간이에요`,
+      body: '잠시 정리하고, 다시 일상으로 돌아가요.',
       data: { type: NOTIF_TYPE.PRIMARY as string },
     }),
     scheduleAt(secondaryAlarm, {
-      title: '아직 걱정 타임이 남아있어요',
-      body: '바로 못 하셨다면 지금 시작하거나 미룰 수 있어요.',
+      title: `${nickname}님, 아직 걱정타임을 시작하지 않았어요`,
+      body: '지금 작성하거나, 편한 시간으로 다시 설정할 수 있어요.',
       data: { type: NOTIF_TYPE.SECONDARY as string },
-    }),
-    scheduleAt(lockTrigger, {
-      title: '오늘의 걱정 타임이 지나갔어요',
-      body: '내일 또 만나요. 오늘 하루도 수고하셨어요.',
-      data: { type: NOTIF_TYPE.LOCK as string },
+      categoryIdentifier: NOTIF_CATEGORY.WORRY_PROMPT,
     }),
   ]);
 
   return {
     primaryNotifId: primaryId,
     secondaryNotifId: secondaryId,
-    lockNotifId: lockId,
+    lockNotifId: null, // 호환성 필드, 더 이상 사용 X
   };
 }
 
 // ─── 미루기 알림 ─────────────────────────────────────────
 
+// 호환성: delayLockNotifId 필드 유지 (항상 null)
 export interface DelayScheduledIds {
   delayedNotifId: string | null;
   delayLockNotifId: string | null;
 }
 
 export async function scheduleDelayed(delayedUntil: Date): Promise<DelayScheduledIds> {
-  const delayLock = getDelayLockTime(delayedUntil);
+  const profile = await getUserProfile();
+  const nickname = profile?.nickname ?? '회원';
 
-  const [delayedId, delayLockId] = await Promise.all([
-    scheduleAt(delayedUntil, {
-      title: '미뤄둔 걱정 타임이에요 📓',
-      body: '지금 걱정을 꺼내볼 시간이에요.',
-      data: { type: NOTIF_TYPE.DELAYED as string },
-    }),
-    scheduleAt(delayLock, {
-      title: '오늘의 걱정 타임이 지나갔어요',
-      body: '내일 또 만나요.',
-      data: { type: NOTIF_TYPE.DELAY_LOCK as string },
-    }),
-  ]);
-
-  return { delayedNotifId: delayedId, delayLockNotifId: delayLockId };
-}
-
-// ─── 타이머 종료 알림 ─────────────────────────────────────
-
-export async function scheduleTimerEnd(
-  startedAt: Date,
-  focusMinutes: number
-): Promise<string | null> {
-  const endAt = new Date(startedAt.getTime() + focusMinutes * 60 * 1000);
-  return scheduleAt(endAt, {
-    title: '걱정 타임이 끝났어요 🌸',
-    body: '수고하셨어요. 오늘도 용감하게 걱정을 마주하셨네요.',
-    data: { type: NOTIF_TYPE.TIMER_END as string },
+  const delayedId = await scheduleAt(delayedUntil, {
+    title: `${nickname}님, 미뤄둔 걱정타임이에요`,
+    body: '지금 걱정을 꺼내볼 시간이에요.',
+    data: { type: NOTIF_TYPE.DELAYED as string },
   });
+
+  return {
+    delayedNotifId: delayedId,
+    delayLockNotifId: null, // 호환성 필드, 더 이상 사용 X
+  };
 }
 
 // ─── 알림 취소 ────────────────────────────────────────────
@@ -181,7 +192,6 @@ export async function cancelCycleNotifications(ids: {
 
 /**
  * Doze 모드 등으로 예약이 사라진 경우 복구
- * 현재 예약 목록을 확인하고 없으면 재예약
  */
 export async function reconcileNotifications(worryTime: WorryTime): Promise<void> {
   const scheduled = await Notifications.getAllScheduledNotificationsAsync();
@@ -196,11 +206,14 @@ export async function reconcileNotifications(worryTime: WorryTime): Promise<void
 
 // ─── 내부 헬퍼 ────────────────────────────────────────────
 
-async function scheduleAt(
-  date: Date,
-  content: { title: string; body: string; data: Record<string, unknown> }
-): Promise<string | null> {
-  // 이미 지난 시각이면 예약하지 않음
+interface ScheduleContent {
+  title: string;
+  body: string;
+  data: Record<string, unknown>;
+  categoryIdentifier?: string;
+}
+
+async function scheduleAt(date: Date, content: ScheduleContent): Promise<string | null> {
   if (date <= new Date()) {
     console.warn('[scheduler] 이미 지난 시각, 예약 건너뜀:', date.toISOString());
     return null;
@@ -213,14 +226,12 @@ async function scheduleAt(
         body: content.body,
         data: content.data,
         sound: true,
-        // Android: HIGH importance 채널 사용 → Doze 모드 우회
-        // iOS는 channelId를 무시함
+        ...(content.categoryIdentifier ? { categoryIdentifier: content.categoryIdentifier } : {}),
         ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
       },
       trigger: {
         type: Notifications.SchedulableTriggerInputTypes.DATE,
         date,
-        // Android: 명시적으로 채널 지정
         ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
       },
     });

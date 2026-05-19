@@ -18,8 +18,8 @@ import { View, StyleSheet, Pressable } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { startAdvanced } from '../timer/timerService';
-import { Button, Text } from '../components/ui';
-import { Colors, Radii, Spacing } from '../theme';
+import { Button, Card, Text } from '../components/ui';
+import { Colors, Spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NotWorryTime'>;
 
@@ -35,12 +35,10 @@ export default function NotWorryTimeSheet({ navigation }: Props) {
     <View style={styles.backdrop}>
       <Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
 
-      <View style={styles.card}>
-        <Text variant="titleLarge" style={styles.title}>
-          지금은 걱정타임이 아니에요!
-        </Text>
+      <Card variant="warning" style={styles.card}>
+        <Text variant="titleLarge">지금은 걱정타임이 아니에요!</Text>
 
-        <Text variant="sm" color="textHint" style={styles.body}>
+        <Text variant="xsMedium" color="darkGray" style={styles.body}>
           오늘만 시간을 바꿀까요?{'\n'}
           걱정타임은 하루에 한번만 작성할 수 있어요.
         </Text>
@@ -62,7 +60,7 @@ export default function NotWorryTimeSheet({ navigation }: Props) {
             style={styles.buttonItem}
           />
         </View>
-      </View>
+      </Card>
     </View>
   );
 }
@@ -76,33 +74,20 @@ const styles = StyleSheet.create({
     paddingHorizontal: Spacing.xxxl, // 24
   },
 
+  // Card variant="warning" 사용 — 사이즈만 override
   card: {
     width: '100%',
     maxWidth: 340,
-    backgroundColor: Colors.white,
-    borderRadius: 20,
-    paddingHorizontal: Spacing.xxxl, // 24
-    paddingTop: 28,
-    paddingBottom: Spacing.xxl, // 20
-    // 그림자 (iOS + Android)
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowOffset: { width: 0, height: 4 },
-    shadowRadius: 12,
-    elevation: 6,
-  },
-
-  title: {
-    marginBottom: Spacing.md, // 12
   },
   body: {
-    lineHeight: 20,
-    marginBottom: Spacing.xxxl, // 24
+    lineHeight: 18,
+    marginTop: 11,
   },
-
   buttonRow: {
     flexDirection: 'row',
     gap: Spacing.xs, // 8
+    alignSelf: 'stretch',
+    marginTop: 20,
   },
   buttonItem: {
     flex: 1,

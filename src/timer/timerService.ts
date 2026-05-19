@@ -21,7 +21,6 @@ import {
 import type { TimerState, DayRecord } from '../storage/types';
 import {
   scheduleCycle,
-  scheduleTimerEnd,
   cancelCycleNotifications,
   cancelNotifications,
 } from '../notifications/scheduler';
@@ -30,16 +29,16 @@ import type { WorryTime } from './worryTimeWindow';
 
 // ─── 타이머 시작 ─────────────────────────────────────────
 
-export async function startTimer(focusMinutes: number): Promise<void> {
+export async function startTimer(_focusMinutes: number): Promise<void> {
+  // 사용자 결정: 타이머 종료 알림(TIMER_END) 제거.
+  // startedAt만 기록 — 앱 안에서 elapsed 계산만 사용.
   const now = new Date();
   const state = await getTimerState();
-
-  const timerEndId = await scheduleTimerEnd(now, focusMinutes);
 
   await saveTimerState({
     ...state,
     startedAt: now.toISOString(),
-    timerEndNotifId: timerEndId,
+    timerEndNotifId: null, // 호환성 필드, 더 이상 사용 X
   });
 }
 

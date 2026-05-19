@@ -64,13 +64,16 @@ export default function OnboardingGuideScreen({ navigation, route }: Props) {
         </Text>
       </View>
 
-      <Button
-        variant="primary"
-        size="lg"
-        label="시작하기"
-        onPress={handleStart}
-        style={styles.button}
-      />
+      {/* 하단 버튼 — 화면 끝 42dp 위 (WorryTime과 동일) */}
+      <View style={styles.buttonWrap}>
+        <Button
+          variant="primary"
+          size="lg"
+          label="시작하기"
+          onPress={handleStart}
+          style={styles.button}
+        />
+      </View>
     </View>
   );
 }
@@ -99,7 +102,15 @@ const styles = StyleSheet.create({
     flex: 1,
     lineHeight: 22,
   },
+  // 하단 버튼 wrap — absolute bottom 42 (WorryTime 동일 위치)
+  buttonWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 42,
+    alignItems: 'center',
+  },
   button: {
-    marginTop: 'auto',
+    width: 325,
   },
 });

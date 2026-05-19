@@ -20,6 +20,7 @@ export const Typography: Record<
   | 'displayLarge'   // 24 / 700  (온보딩 Welcome 타이틀)
   | 'display'        // 22 / 700  (온보딩 화면 타이틀)
   | 'heading'        // 20 / 600  (프로필 닉네임)
+  | 'headingMid'     // 20 / 500
   | 'titleLarge'     // 18 / 600  (홈 main-button, worry-time)
   | 'titleLargeMid'  // 18 / 500  (sheet 제목, picker 시간)
   | 'title'          // 16 / 600  (섹션 제목)
@@ -52,6 +53,11 @@ export const Typography: Record<
   heading: {
     fontSize: 20,
     fontWeight: '600',
+    letterSpacing: -0.4,
+  },
+  headingMid: {
+    fontSize: 20,
+    fontWeight: '500',
     letterSpacing: -0.4,
   },
   titleLarge: {

@@ -192,6 +192,21 @@ export async function resetCopywriteSeen(): Promise<void> {
   await removeItem(STORAGE_KEYS.COPYWRITE_SEEN_IDS);
 }
 
+// ─── 걱정타임 누적 완료 카운트 ─────────────────────────────
+// 2번째 완료 시점에 점검 안내 모달(WorryCheckInSheet)을 1회 표시하기 위한 카운터.
+// 필사(Copywrite) 완료는 카운트 X — 걱정타임만.
+
+export async function getWorryCompleteCount(): Promise<number> {
+  return (await getItem<number>(STORAGE_KEYS.WORRY_COMPLETE_COUNT)) ?? 0;
+}
+
+/** 카운트 +1 후 새 값 반환 */
+export async function incrementWorryCompleteCount(): Promise<number> {
+  const next = (await getWorryCompleteCount()) + 1;
+  await setItem(STORAGE_KEYS.WORRY_COMPLETE_COUNT, next);
+  return next;
+}
+
 // ─── 개발/디버그용 ────────────────────────────────────────
 
 export async function clearAllData(): Promise<void> {

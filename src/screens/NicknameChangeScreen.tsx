@@ -14,7 +14,7 @@ import {
   KeyboardAvoidingView, Platform, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import ExitIcon from '../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { getUserProfile, saveUserProfile } from '../storage/storage';
@@ -60,7 +60,7 @@ export default function NicknameChangeScreen({ navigation }: Props) {
           style={styles.headerBack}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
         >
-          <Ionicons name="arrow-back" size={24} color={Colors.textPrimary} />
+          <ExitIcon width={24} height={24} />
         </TouchableOpacity>
         <Text variant="titleMedium">닉네임 변경</Text>
         <View style={{ width: 24 }} />
@@ -100,14 +100,17 @@ export default function NicknameChangeScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        <Button
-          variant="primary"
-          size="lg"
-          label="완료"
-          onPress={handleConfirm}
-          disabled={!isValid}
-          style={styles.confirm}
-        />
+        {/* 완료 버튼 — 화면 끝 42dp 위 (WorryTime과 동일) */}
+        <View style={styles.buttonWrap}>
+          <Button
+            variant="primary"
+            size="lg"
+            label="완료"
+            onPress={handleConfirm}
+            disabled={!isValid}
+            style={styles.confirm}
+          />
+        </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -155,9 +158,15 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // 완료 버튼
+  // 하단 버튼 wrap — absolute bottom 42 (WorryTime 동일 위치)
+  buttonWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 42,
+    alignItems: 'center',
+  },
   confirm: {
-    alignSelf: 'stretch',
-    marginBottom: Spacing.xxxl, // 24
+    width: 325,
   },
 });

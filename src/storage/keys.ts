@@ -6,6 +6,7 @@ export const STORAGE_KEYS = {
   MEMO_CURRENT: 'memo:current',
   PROGRESS_COUNT: 'progress:completedCount',
   COPYWRITE_SEEN_IDS: 'copywrite:seenIds',
+  WORRY_COMPLETE_COUNT: 'worry:completeCount',
 } as const;
 
 // 날짜 기반 키 생성 (1차 알림 날짜 기준)

@@ -17,6 +17,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
+import ExitIcon from '../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import {
@@ -27,17 +28,22 @@ import type { UserProfile, WorkerState } from '../storage/types';
 import { scheduleCycle, cancelCycleNotifications } from '../notifications/scheduler';
 import { resolveState } from '../timer/stateMachine';
 import { Button, Card, Text } from '../components/ui';
+import { TimePickerSheet } from '../components/TimePickerSheet';
 import { Colors, Radii, Spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
 const FOCUS_OPTIONS = [15, 20, 25, 30];
 
-export default function SettingsScreen({ navigation }: Props) {
+export default function SettingsScreen({ navigation, route }: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [appState, setAppState] = useState<WorkerState>('idle');
   const [worryPickerOpen, setWorryPickerOpen] = useState(false);
-  const [focusPickerOpen, setFocusPickerOpen] = useState(false);
+  // 진입 시 autoOpenFocusPicker route param 받으면 FocusTimeSheet 자동 열림
+  // (WorryCheckIn에서 "설정하러 가기" 진입한 경우)
+  const [focusPickerOpen, setFocusPickerOpen] = useState(
+    route.params?.autoOpenFocusPicker === true,
+  );
 
   useEffect(() => {
     const unsub = navigation.addListener('focus', loadProfile);
@@ -245,11 +251,12 @@ export default function SettingsScreen({ navigation }: Props) {
         </View>
       </ScrollView>
 
-      {/* 시작 시간 바텀시트 */}
-      <WorryTimeSheet
+      {/* 시작 시간 바텀시트 — 공유 TimePickerSheet 사용 */}
+      <TimePickerSheet
         visible={worryPickerOpen}
         initialHour={profile.worryTime.hour}
         initialMinute={profile.worryTime.minute}
+        title="시작 시간을 선택해 주세요."
         onClose={() => setWorryPickerOpen(false)}
         onConfirm={(h, m) => {
           handleWorryTimeChange(h, m);
@@ -281,7 +288,7 @@ function Header({ onBack }: { onBack: () => void }) {
         style={styles.headerBack}
         hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
       >
-        <Ionicons name="arrow-back" size={24} color={Colors.black} />
+        <ExitIcon width={24} height={24} />
       </TouchableOpacity>
       <Text variant="titleMedium">설정</Text>
       <View style={{ width: 24 }} />
@@ -334,88 +341,7 @@ function ToggleRow({
   );
 }
 
-// ─── 시작 시간 바텀시트 ────────────────────────────────
-
-interface WorryTimeSheetProps {
-  visible: boolean;
-  initialHour: number;
-  initialMinute: number;
-  onClose: () => void;
-  onConfirm: (hour: number, minute: number) => void;
-}
-
-function WorryTimeSheet({
-  visible, initialHour, initialMinute, onClose, onConfirm,
-}: WorryTimeSheetProps) {
-  const [picked, setPicked] = useState(() => {
-    const d = new Date();
-    d.setHours(initialHour, initialMinute, 0, 0);
-    return d;
-  });
-  const [showAndroidPicker, setShowAndroidPicker] = useState(false);
-
-  useEffect(() => {
-    if (visible) {
-      const d = new Date();
-      d.setHours(initialHour, initialMinute, 0, 0);
-      setPicked(d);
-      if (Platform.OS === 'android') setShowAndroidPicker(true);
-    }
-  }, [visible, initialHour, initialMinute]);
-
-  const formatted = formatTime12h(picked.getHours(), picked.getMinutes());
-
-  return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.sheet, { gap: 104 }]}>
-        <Text variant="titleLargeMid" style={styles.sheetTitle}>
-          시작 시간을 선택해 주세요.
-        </Text>
-
-        {Platform.OS === 'ios' ? (
-          <DateTimePicker
-            value={picked}
-            mode="time"
-            display="spinner"
-            onChange={(_, date) => date && setPicked(date)}
-          />
-        ) : (
-          <>
-            <TouchableOpacity
-              style={styles.timeChip}
-              onPress={() => setShowAndroidPicker(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={styles.timeChipText}>{formatted.display}</Text>
-              <Text style={styles.timeChipText}>{formatted.ampm}</Text>
-            </TouchableOpacity>
-            {showAndroidPicker && (
-              <DateTimePicker
-                value={picked}
-                mode="time"
-                is24Hour={false}
-                display="default"
-                onChange={(event, date) => {
-                  setShowAndroidPicker(false);
-                  if (event.type === 'set' && date) setPicked(date);
-                }}
-              />
-            )}
-          </>
-        )}
-
-        <Button
-          variant="primary"
-          size="lg"
-          label="완료"
-          onPress={() => onConfirm(picked.getHours(), picked.getMinutes())}
-          style={styles.confirmButton}
-        />
-      </View>
-    </Modal>
-  );
-}
+// ─── 시작 시간 바텀시트 — 공유 컴포넌트 사용 (src/components/TimePickerSheet.tsx) ─────────
 
 // ─── 집중 시간 바텀시트 ────────────────────────────────
 
