@@ -86,6 +86,10 @@ export default function CopywriteScreen({ navigation }: Props) {
   const [entry, setEntry] = useState<CopywriteEntry | null>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  // SpeechBubble 실제 렌더 높이 — onLayout으로 측정 (1줄/2줄 phrase 모두 동적 대응)
+  // sub_char 머리가 SpeechBubble 끝에서 정확히 11dp 떨어지도록 사용.
+  // 초기값 51 = 본체(~36) + gap2 + tail1(6) + gap2 + tail2(5) (1줄 기준 추정)
+  const [speechH, setSpeechH] = useState(51);
 
   // mount: profile 로드 + 콘텐츠 랜덤 선택 (중복 방지)
   useEffect(() => {
@@ -171,9 +175,9 @@ export default function CopywriteScreen({ navigation }: Props) {
     <View style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
-      {/* 상단 날짜 (center, y=73) */}
+      {/* 상단 날짜 (center, y=73) — 피그마 15px medium */}
       <View style={[styles.dateWrap, { top: adjustTop(73) }]}>
-        <Text variant="bodyLarge" align="center">{formatTodayDate()}</Text>
+        <Text variant="bodyMedium" align="center">{formatTodayDate()}</Text>
       </View>
 
       {/* Audio 토글 (x=316, y=66, 24×24) */}
@@ -184,32 +188,38 @@ export default function CopywriteScreen({ navigation }: Props) {
         />
       </View>
 
-      {/* SpeechBubble (x=95, y=125, w=210, h≈67) */}
-      <View style={[styles.speechWrap, { top: adjustTop(125) }]}>
+      {/* SpeechBubble (x=95, y=125) — onLayout으로 실제 height 측정 */}
+      <View
+        style={[styles.speechWrap, { top: adjustTop(125) }]}
+        onLayout={(e) => setSpeechH(e.nativeEvent.layout.height)}
+      >
         <SpeechBubble text={hint} />
       </View>
 
-      {/* sub_char 캐릭터 (x=272, y=187, 66×68) */}
-      <Image
-        source={SUB_CHAR}
-        style={[styles.subChar, { top: adjustTop(187) }]}
-        resizeMode="contain"
-      />
-
-      {/* 필사 콘텐츠 카드 (center, y=253, 328×313) */}
+      {/* 필사 콘텐츠 카드 (center, y=253, 328×313) — sub_char 보다 먼저 렌더 (꽃 발 위에 보이도록) */}
       <View style={[styles.card, { top: adjustTop(253) }]}>
-        <Text variant="titleLarge" style={styles.cardTitle}>
-          오늘의 필사 콘텐츠
-        </Text>
+        {/* 제목 18px medium (피그마 62:68) */}
+        <Text variant="titleLargeMid">오늘의 필사 콘텐츠</Text>
         {entry && (
           <View style={styles.cardBody}>
-            <Text style={styles.cardBodyText}>{entry.body}</Text>
+            {/* 본문 14px medium black/80% (피그마 62:67) */}
+            <Text variant="body" style={styles.cardBodyText}>{entry.body}</Text>
             {entry.author ? (
-              <Text style={styles.cardBodyAuthor}>{`\n${entry.author}`}</Text>
+              <Text variant="body" style={styles.cardBodyAuthor}>
+                {`\n${entry.author}`}
+              </Text>
             ) : null}
           </View>
         )}
       </View>
+
+      {/* sub_char 캐릭터 (x=272, 66×68) — speechBubble 끝 + 11dp 위치
+          card 다음에 렌더해 발이 카드 위에 보이도록 */}
+      <Image
+        source={SUB_CHAR}
+        style={[styles.subChar, { top: adjustTop(125) + speechH + 11 }]}
+        resizeMode="contain"
+      />
 
       {/* 작성 완료 버튼 (피그마 y=702, w=325, h=56) */}
       <View style={[styles.buttonWrap, { bottom: 42 + insets.bottom }]}>
@@ -254,15 +264,17 @@ const styles = StyleSheet.create({
     left: 95,
   },
 
-  // sub_char (피그마 x=272, y=187, 66×68)
+  // sub_char (피그마 x=272, y=187, 66×68, aspect-ratio 33/34)
   subChar: {
     position: 'absolute',
     left: 272,
     width: 66,
     height: 68,
+    aspectRatio: 33 / 34,
   },
 
-  // 필사 콘텐츠 카드
+  // 필사 콘텐츠 카드 — 피그마: w=328, h=313
+  // padding: left 27 / right 28 / top 36 / bottom 56 (피그마 스크린샷 측정)
   card: {
     position: 'absolute',
     left: 16, // (360 - 328) / 2 = 16
@@ -270,8 +282,10 @@ const styles = StyleSheet.create({
     height: 313,
     backgroundColor: Colors.lightGray100,
     borderRadius: Radii.lg, // 16
-    paddingHorizontal: 28, // 피그마: 제목 x=28
-    paddingTop: 36, // 피그마: 제목 y=36
+    paddingLeft: 27,
+    paddingRight: 28,
+    paddingTop: 36,
+    paddingBottom: 56,
     // drop-shadow (0, 4, 10, -2, 0.25)
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
@@ -280,28 +294,18 @@ const styles = StyleSheet.create({
     elevation: 5,
     overflow: 'hidden',
   },
-  cardTitle: {
-    // 18px medium black (Text variant=titleLarge: 18/600). 피그마는 18/500.
-    // titleLarge가 600(semibold)이라 약간 굵게 보임. 디자인 fidelity 우선이면 titleLargeMid(18/500) 사용 가능.
-    // 일단 titleLarge로 통일 (피그마와 거의 동일 시각).
-    marginBottom: 0,
-  },
+  // 제목 ↔ 본문 gap: 피그마 31 (title y=36, body y=89, title h≈22 → 89-36-22=31)
   cardBody: {
-    marginTop: 17, // 제목(y=36, h≈22) 끝 ~58 → 본문 y=89 → gap 17 정도. 피그마 89-36-22=31. 시각 미세 조정 필요.
+    marginTop: 31,
   },
+  // 본문 — Text variant="body" (14/500/-0.28) + opacity 0.8 (피그마 black 80%)
   cardBodyText: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(0,0,0,0.8)',
+    opacity: 0.8,
     lineHeight: 21, // 14 * 1.5
-    letterSpacing: -0.28,
   },
   cardBodyAuthor: {
-    fontSize: 14,
-    fontWeight: '500',
-    color: 'rgba(0,0,0,0.6)',
+    opacity: 0.6,
     lineHeight: 21,
-    letterSpacing: -0.28,
   },
 
   // 작성 완료 버튼
