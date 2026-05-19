@@ -27,12 +27,14 @@ export const Typography: Record<
   | 'titleBold'      // 16 / 700  (온보딩 info-item "집중 시간")
   | 'bodyLarge'      // 15 / 600  (input placeholder, bottom-button)
   | 'bodyMedium'     // 15 / 500  (온보딩 subtitle)
+  | 'bodyRegular'    // 15 / 400  (worry 메모 본문)
   | 'bodyBold'       // 15 / 700  (온보딩 tips title)
   | 'body'           // 14 / 500  (설정 행 라벨, 시간 텍스트)
   | 'sm'             // 13 / 500  (input hint, 가이드 텍스트)
   | 'xs'             // 12 / 400  (sub label, "오전/오후")
   | 'xsMedium'       // 12 / 500
-  | 'caption',       // 11 / 500  (프로필 hint)
+  | 'caption'        // 11 / 500  (프로필 hint)
+  | 'tiny',          // 10 / 400  (worry 메모 시간 표시)
   Variant
 > = {
   displayLarge: {
@@ -87,6 +89,11 @@ export const Typography: Record<
     fontWeight: '500',
     letterSpacing: -0.3,
   },
+  bodyRegular: {
+    fontSize: 15,
+    fontWeight: '400',
+    letterSpacing: -0.3,
+  },
   bodyBold: {
     fontSize: 15,
     fontWeight: '700',
@@ -116,6 +123,11 @@ export const Typography: Record<
     fontSize: 11,
     fontWeight: '500',
     letterSpacing: -0.22,
+  },
+  tiny: {
+    fontSize: 10,
+    fontWeight: '400',
+    letterSpacing: -0.2,
   },
 };
 
