@@ -6,6 +6,7 @@ import OnboardingNavigator from './OnboardingNavigator';
 import HomeScreen from '../screens/HomeScreen';
 import WorryTimeScreen from '../screens/WorryTimeScreen';
 import MemoScreen from '../screens/MemoScreen';
+import MemoCompleteScreen from '../screens/MemoCompleteScreen';
 import SettingsScreen from '../screens/SettingsScreen';
 import NicknameChangeScreen from '../screens/NicknameChangeScreen';
 import CopywriteScreen from '../screens/CopywriteScreen';
@@ -15,6 +16,7 @@ import DelayConfirmSheet from '../screens/DelayConfirmSheet';
 import DelaySetSheet from '../screens/DelaySetSheet';
 import RewardScreen from '../screens/RewardScreen';
 import WorryCheckInSheet from '../screens/WorryCheckInSheet';
+import OnboardingGuideScreen from '../screens/OnboardingGuideScreen';
 import { isOnboardingDone, initSchema } from '../storage/storage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -39,8 +41,17 @@ export default function RootNavigator() {
     >
       <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
       <Stack.Screen name="Home" component={HomeScreen} />
-      <Stack.Screen name="WorryTime" component={WorryTimeScreen} />
+      <Stack.Screen
+        name="WorryTime"
+        component={WorryTimeScreen}
+        options={{ gestureEnabled: false }}
+      />
       <Stack.Screen name="Memo" component={MemoScreen} />
+      <Stack.Screen
+        name="MemoComplete"
+        component={MemoCompleteScreen}
+        options={{ animation: 'fade', gestureEnabled: false }}
+      />
       <Stack.Screen name="Settings" component={SettingsScreen} />
       <Stack.Screen name="NicknameChange" component={NicknameChangeScreen} />
       <Stack.Screen name="Copywrite" component={CopywriteScreen} />
@@ -72,6 +83,15 @@ export default function RootNavigator() {
       <Stack.Screen
         name="WorryCheckIn"
         component={WorryCheckInSheet}
+        options={{
+          presentation: 'transparentModal',
+          animation: 'fade',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="OnboardingGuide"
+        component={OnboardingGuideScreen}
         options={{
           presentation: 'transparentModal',
           animation: 'fade',

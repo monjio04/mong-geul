@@ -13,11 +13,6 @@ export type OnboardingStackParamList = {
     worryHour: number;
     worryMinute: number;
   };
-  OnboardingGuide: {
-    nickname: string;
-    worryHour: number;
-    worryMinute: number;
-  };
 };
 
 // ─── 메인 스택 ───────────────────────────────────────────
@@ -26,6 +21,7 @@ export type RootStackParamList = {
   Home: undefined;
   WorryTime: undefined;
   Memo: undefined;
+  MemoComplete: undefined;       // 메모 작성 완료 후 안내 화면 (3초 자동 Home)
   // autoOpenFocusPicker: WorryCheckIn → "설정하러 가기" 진입 시 FocusTimeSheet 자동 열림
   Settings: { autoOpenFocusPicker?: boolean } | undefined;
   NicknameChange: undefined; // 설정 → 닉네임 변경
@@ -45,4 +41,5 @@ export type RootStackParamList = {
     from: 'worry';
     worryHour: number;
   };
+  OnboardingGuide: undefined; // 온보딩 종료 직후 4 슬라이드 가이드 — 홈 위 transparentModal
 };

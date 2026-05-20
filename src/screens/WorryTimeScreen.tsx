@@ -118,6 +118,18 @@ export default function WorryTimeScreen({ navigation }: Props) {
     })();
   }, [navigation]);
 
+  // 걱정타임 중에는 뒤로가기 차단 (Android 하드웨어 백 + iOS swipe-back 모두)
+  // GO_BACK / POP 액션만 막고, replace/reset 등 명시적 이동은 허용 — completeTimer→Reward 정상 동작
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('beforeRemove', (e) => {
+      const t = e.data.action.type;
+      if (t === 'GO_BACK' || t === 'POP') {
+        e.preventDefault();
+      }
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   // 1초마다 elapsedSec 갱신
   useEffect(() => {
     if (!startedAt) return;

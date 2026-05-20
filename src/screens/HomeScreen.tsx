@@ -20,7 +20,7 @@
 
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Image, Platform,
+  View, Text, StyleSheet, TouchableOpacity, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -32,6 +32,7 @@ import { getUserProfile, getTimerState } from '../storage/storage';
 import type { UserProfile, WorkerState } from '../storage/types';
 import { resolveState } from '../timer/stateMachine';
 import { getNextPrimaryAlarm } from '../timer/worryTimeWindow';
+import { MainButton } from '../components/MainButton';
 
 const BG_IMAGE = require('../../assets/images/background.png');
 
@@ -169,46 +170,22 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
       )}
 
-      {/* 하단 액션 영역 */}
+      {/* 하단 액션 영역 — 공용 MainButton 컴포넌트 */}
       <View style={styles.bottomBar}>
-        {/* 왼쪽 박스 */}
-        {isActive ? (
-          // 활성: 필사하기 (탭 가능)
-          <TouchableOpacity
-            style={styles.leftBox}
-            onPress={() => navigation.navigate('Copywrite')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.leftBoxAction}>필사하기</Text>
-          </TouchableOpacity>
-        ) : (
-          // 비활성: 카운트다운 박스 (탭 가능 → NotWorryTime 시트로 앞당기기 안내)
-          <TouchableOpacity
-            style={styles.leftBox}
-            onPress={() => navigation.navigate('NotWorryTime')}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.leftBoxValue}>{countdown}</Text>
-            <Text style={styles.leftBoxSub}>
-              {appState === 'delayed' ? '재알림까지' : '걱정타임까지 남은 시간'}
-            </Text>
-          </TouchableOpacity>
-        )}
-
-        {/* 오른쪽 큰 CTA */}
-        <TouchableOpacity
-          style={[styles.ctaButton, styles.ctaActive]}
-          onPress={
+        <MainButton
+          status={isActive ? 'worry-time' : 'idle'}
+          remainingTime={countdown}
+          onPressLeft={
             isActive
-              ? () => navigation.navigate('WorryTime')  // 걱정 정리하기
-              : () => navigation.navigate('Memo')        // 걱정 맡겨두기 → 메모
+              ? () => navigation.navigate('Copywrite')   // 필사하기
+              : () => navigation.navigate('NotWorryTime') // 카운트다운 박스 탭 — 앞당기기 안내
           }
-          activeOpacity={0.85}
-        >
-          <Text style={styles.ctaText}>
-            {isActive ? '걱정 정리하기' : '걱정 맡겨두기'}
-          </Text>
-        </TouchableOpacity>
+          onPressRight={
+            isActive
+              ? () => navigation.navigate('WorryTime')   // 걱정 정리하기
+              : () => navigation.navigate('Memo')        // 걱정 맡겨두기
+          }
+        />
       </View>
     </SafeAreaView>
   );
@@ -363,60 +340,11 @@ const styles = StyleSheet.create({
     aspectRatio: 196 / 207,
   },
 
-  // 하단 액션 (반응형: flex 비율)
+  // 하단 액션 — MainButton 자체가 width=320 고정. 중앙 정렬.
   bottomBar: {
     position: 'absolute',
     bottom: 32,
-    left: 20, right: 20,
-    flexDirection: 'row',
+    left: 0, right: 0,
     alignItems: 'center',
-    gap: 8,
-  },
-
-  leftBox: {
-    flex: 0.42,           // 피그마 132/(132+8+180) ≈ 0.41
-    height: 72,
-    borderRadius: 16,
-    backgroundColor: COLORS.lightGray,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 2,
-  },
-  leftBoxValue: {
-    fontSize: 16, fontWeight: '600', color: COLORS.darkGray,
-    letterSpacing: -0.32,
-  },
-  leftBoxAction: {
-    fontSize: 14, fontWeight: '600', color: COLORS.brand,
-    letterSpacing: -0.28,
-  },
-  leftBoxSub: {
-    fontSize: 11, fontWeight: '500', color: COLORS.darkGray,
-    letterSpacing: -0.22,
-  },
-
-  ctaButton: {
-    flex: 0.58,           // 피그마 180/320 ≈ 0.56
-    height: 72,
-    borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  ctaActive: {
-    backgroundColor: COLORS.brand,
-    ...Platform.select({
-      ios: {
-        shadowColor: '#000',
-        shadowOpacity: 0.1,
-        shadowOffset: { width: 0, height: 2 },
-        shadowRadius: 4,
-      },
-      android: { elevation: 3 },
-    }),
-  },
-  ctaText: {
-    color: COLORS.white,
-    fontSize: 18, fontWeight: '600',
-    letterSpacing: -0.36,
   },
 });

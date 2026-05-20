@@ -56,11 +56,19 @@ export default function OnboardingPermissionScreen({ route, navigation }: Props)
       await scheduleCycle(profile.worryTime);
 
       // 홈으로 이동 (온보딩 완전 종료)
-      rootNav.reset({ index: 0, routes: [{ name: 'Home' }] });
+      // 홈으로 reset + 그 위에 가이드 모달 진입 (4 슬라이드)
+      rootNav.reset({
+        index: 1,
+        routes: [{ name: 'Home' }, { name: 'OnboardingGuide' }],
+      });
     } catch (e) {
       console.error('[OnboardingPermission] 오류:', e);
       // 오류가 나도 홈으로 진입 (권한 거부 등은 홈에서 배너로 안내)
-      rootNav.reset({ index: 0, routes: [{ name: 'Home' }] });
+      // 홈으로 reset + 그 위에 가이드 모달 진입 (4 슬라이드)
+      rootNav.reset({
+        index: 1,
+        routes: [{ name: 'Home' }, { name: 'OnboardingGuide' }],
+      });
     } finally {
       setLoading(false);
     }

@@ -32,7 +32,7 @@ import { Text } from './Text';
 import type { TypographyVariant } from '../../theme';
 
 type ButtonVariant = 'primary' | 'secondary' | 'surface' | 'ghost';
-type ButtonSize = 'md' | 'lg' | 'xl';
+type ButtonSize = 'md' | 'lg' | 'xl' | 'main';
 
 export interface ButtonProps extends Omit<PressableProps, 'children' | 'style'> {
   variant?: ButtonVariant;
@@ -61,20 +61,26 @@ const VARIANT_TEXT_COLOR: Record<ButtonVariant, keyof typeof Colors> = {
 };
 
 // 각 사이즈의 height / radius / typography
+// "main" = 홈 main-button 전용 (피그마 main-button 컴포넌트, h72/radius16/18px bold)
+//   xl과 동일 값이지만 호출처 의도(홈 메인 CTA)를 분명히 하기 위해 별도 토큰.
+//   worry-time 좌측 박스(radius 12)는 호출처에서 style prop 으로 override.
 const SIZE_HEIGHT: Record<ButtonSize, number> = {
   md: 47,
   lg: 56,
   xl: 72,
+  main: 72,
 };
 const SIZE_RADIUS: Record<ButtonSize, number> = {
   md: Radii.sm,
   lg: Radii.lg,
   xl: Radii.lg,
+  main: Radii.lg,
 };
 const SIZE_TYPOGRAPHY: Record<ButtonSize, TypographyVariant> = {
   md: 'body',
   lg: 'bodyLarge',
   xl: 'titleLarge',
+  main: 'titleLarge',
 };
 
 // ─── 컴포넌트 ──────────────────────────────────────────
