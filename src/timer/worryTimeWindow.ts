@@ -10,8 +10,7 @@ export interface WorryTime {
 }
 
 // ─── 기본 상수 ────────────────────────────────────────────
-// TODO: 테스트 후 30으로 환원
-const SECONDARY_ALARM_OFFSET_MIN = 1;    // [임시 테스트] 1차 알림 후 1분 → 2차 알림 (원래: 30)
+const SECONDARY_ALARM_OFFSET_MIN = 30;   // 1차 알림 후 30분 → 2차 알림
 const LOCK_OFFSET_MIN = 60;              // 2차 알림 후 1시간 → 잠금
 const DELAY_LOCK_OFFSET_MIN = 30;        // 미루기 재알림 후 30분 → 잠금
 const MAX_DELAY_HOUR = 4;               // 미루기 상한: 익일 04:00

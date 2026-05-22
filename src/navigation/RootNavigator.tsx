@@ -17,6 +17,7 @@ import DelaySetSheet from '../screens/DelaySetSheet';
 import RewardScreen from '../screens/RewardScreen';
 import WorryCheckInSheet from '../screens/WorryCheckInSheet';
 import OnboardingGuideScreen from '../screens/OnboardingGuideScreen';
+import WorryTimeEntryScreen from '../screens/WorryTimeEntryScreen';
 import { isOnboardingDone, initSchema } from '../storage/storage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -41,6 +42,11 @@ export default function RootNavigator() {
     >
       <Stack.Screen name="Onboarding" component={OnboardingNavigator} />
       <Stack.Screen name="Home" component={HomeScreen} />
+      <Stack.Screen
+        name="WorryTimeEntry"
+        component={WorryTimeEntryScreen}
+        options={{ animation: 'fade', gestureEnabled: false }}
+      />
       <Stack.Screen
         name="WorryTime"
         component={WorryTimeScreen}

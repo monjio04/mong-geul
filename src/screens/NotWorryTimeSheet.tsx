@@ -13,22 +13,47 @@
  *     → 홈 복귀 (원래 설정 시간 알림 유지, 아무 변화 없음)
  */
 
-import React from 'react';
-import { View, StyleSheet, Pressable } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, StyleSheet, Pressable, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { startAdvanced } from '../timer/timerService';
+import { getTimerState } from '../storage/storage';
 import { Button, Card, Text } from '../components/ui';
 import { Colors, Spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NotWorryTime'>;
 
 export default function NotWorryTimeSheet({ navigation }: Props) {
+  // 더블탭 / 사이클 중복 호출 방지
+  const advancingRef = useRef(false);
+  const [advancing, setAdvancing] = useState(false);
+
   const handleClose = () => navigation.goBack();
 
   const handleAdvance = async () => {
-    await startAdvanced();
-    navigation.replace('WorryTime');
+    // 1) 더블탭 방지 — ref로 즉시 차단 (useState는 비동기라 race 가능)
+    if (advancingRef.current) return;
+    advancingRef.current = true;
+    setAdvancing(true);
+
+    try {
+      // 2) 사이클 중복 방지 — 이미 앞당기기 사용했거나 timer 진행 중이면 차단
+      const state = await getTimerState();
+      if (state.isAdvanced || state.startedAt) {
+        Alert.alert('알림', '오늘 걱정타임은 이미 시작했어요.');
+        navigation.goBack();
+        return;
+      }
+
+      await startAdvanced();
+      // 5초 카운트다운 진입 화면을 거쳐 WorryTime 으로
+      navigation.replace('WorryTimeEntry');
+    } catch (e) {
+      console.error('[NotWorryTimeSheet] startAdvanced 오류:', e);
+      advancingRef.current = false;
+      setAdvancing(false);
+    }
   };
 
   return (
@@ -49,6 +74,7 @@ export default function NotWorryTimeSheet({ navigation }: Props) {
             size="md"
             label="지금 작성할래요"
             onPress={handleAdvance}
+            disabled={advancing}
             style={styles.buttonItem}
             textStyle={{ color: Colors.textHint }}
           />
@@ -57,6 +83,7 @@ export default function NotWorryTimeSheet({ navigation }: Props) {
             size="md"
             label="이따 다시 올게요"
             onPress={handleClose}
+            disabled={advancing}
             style={styles.buttonItem}
           />
         </View>

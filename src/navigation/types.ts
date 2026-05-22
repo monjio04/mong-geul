@@ -19,6 +19,7 @@ export type OnboardingStackParamList = {
 export type RootStackParamList = {
   Onboarding: undefined;     // 온보딩 스택 전체
   Home: undefined;
+  WorryTimeEntry: undefined;     // 5초 카운트다운 진입 화면 → WorryTime
   WorryTime: undefined;
   Memo: undefined;
   MemoComplete: undefined;       // 메모 작성 완료 후 안내 화면 (3초 자동 Home)

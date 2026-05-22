@@ -46,7 +46,7 @@ export default function MemoScreen({ navigation }: Props) {
     const hideEvent = Platform.OS === 'ios' ? 'keyboardWillHide' : 'keyboardDidHide';
     const showSub = Keyboard.addListener(showEvent, () => {
       Animated.timing(translateY, {
-        toValue: -hp(180),
+        toValue: -hp(60),
         duration: 250,
         useNativeDriver: true,
       }).start();
@@ -79,25 +79,22 @@ export default function MemoScreen({ navigation }: Props) {
     }
   };
 
-  // 피그마 좌표 (insets 보정)
-  const exitTop = Math.max(0, hp(65) - insets.top);
-  const titleTop = Math.max(0, hp(72) - insets.top);
+  // 피그마 좌표 (insets 보정) — exit y=65 기준, 타이틀은 같은 row 에 수직 가운데
+  const headerTop = Math.max(0, hp(65) - insets.top);
   const memoTop = Math.max(0, hp(335) - insets.top);
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      {/* exit */}
-      <TouchableOpacity
-        style={[styles.exitBtn, { top: exitTop }]}
-        onPress={() => navigation.goBack()}
-        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-      >
-        <ExitIcon width={24} height={24} />
-      </TouchableOpacity>
-
-      {/* 타이틀 */}
-      <View style={[styles.titleWrap, { top: titleTop }]}>
+      {/* 헤더 row — exit (좌) + 타이틀 (가운데) + spacer (우, 정렬 맞춤) */}
+      <View style={[styles.header, { paddingTop: headerTop }]}>
+        <TouchableOpacity
+          onPress={() => navigation.goBack()}
+          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+        >
+          <ExitIcon width={24} height={24} />
+        </TouchableOpacity>
         <Text style={styles.title}>걱정 맡겨두기</Text>
+        <View style={{ width: 24 }} />
       </View>
 
       {/* MemoMemo 입력 박스 — 키보드 등장 시 translateY 로 위로 lift */}
@@ -127,15 +124,12 @@ export default function MemoScreen({ navigation }: Props) {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.white },
-  exitBtn: {
-    position: 'absolute',
-    left: 20,
-  },
-  titleWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+  // 헤더 row — exit + 타이틀 + spacer 가운데 정렬
+  header: {
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 20,
   },
   title: {
     fontSize: 16,

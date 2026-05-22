@@ -1,26 +1,25 @@
 /**
- * 홈 화면
+ * 홈 화면 — 피그마 메인화면-걱정타임 (active, 301:5437) / 걱정타임X (idle, 112:807)
  *
- * 레이아웃 (피그마 360x800 기준, 반응형 처리):
- *  - 헤더: 로고 (좌) | < YYYY.MM > (중앙, chevron) | 설정 (우)
- *  - 배경: 일러스트 이미지 (항상 표시)
- *  - 중앙: 말풍선(활성시) + 캐릭터 Lottie — 한 컨테이너로 묶음
- *  - 하단: 카운트다운/필사하기 + 메인 CTA
+ * 레이아웃 (피그마 360×800 기준, 화면 비율로 반응형):
+ *  - 헤더: 로고 (좌, x=20 y=59 40×40) | < YYYY.MM > (중앙, chevron) | 설정 (우, x=308 y=67)
+ *  - 배경: background.png + sky base
+ *  - 말풍선 (active 만): figma 메인 spec — center, top 234, lightGray100 pill, 12px medium, 꼬리 2개
+ *  - main_char (svg): left=82 top=346 196×207 → '22.8% / 43.25% / 54.4% / aspect 196:207'
+ *  - sub_char (Idle Flower lottie, active+idle): left=152 top=317 57×59 → '42.2% / 39.6% / 15.8% / 57:59'
+ *  - 하단: MainButton (status idle/worry-time)
  *
- * 상태별 버튼:
+ * 상태별 버튼 동작:
  *  - 활성 (active/inProgress/advanced):
- *      왼쪽 작은 = "필사하기" → Copywrite
- *      오른쪽 큰 = "걱정 정리하기" → WorryTime
+ *      좌측 "필사하기" → Copywrite, 우측 "걱정 정리하기" → WorryTime
  *  - 비활성 (idle/delayed/locked/completed):
- *      왼쪽 작은 = 카운트다운 (탭 가능) → NotWorryTime 시트 (앞당기기 안내)
- *      오른쪽 큰 = "걱정 맡겨두기" → MEMO 화면
- *
- * 반응형: flex + percentage 위주. 캐릭터·말풍선은 화면 너비 비율 기반.
+ *      좌측 시계 박스 (00:00 + 걱정타임까지 남은 시간) 탭 → NotWorryTime 시트
+ *      우측 "걱정 맡겨두기" → Memo
  */
 
 import React, { useCallback, useRef, useState } from 'react';
 import {
-  View, Text, StyleSheet, TouchableOpacity, Image,
+  View, StyleSheet, TouchableOpacity, Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -33,20 +32,13 @@ import type { UserProfile, WorkerState } from '../storage/types';
 import { resolveState } from '../timer/stateMachine';
 import { getNextPrimaryAlarm } from '../timer/worryTimeWindow';
 import { MainButton } from '../components/MainButton';
+import { SpeechBubble } from '../components/SpeechBubble';
+import { Text } from '../components/ui';
+import { Colors } from '../theme';
+import MainCharSvg from '../../assets/images/main_char.svg';
 
 const BG_IMAGE = require('../../assets/images/background.png');
-
-const COLORS = {
-  white: '#ffffff',
-  sky: '#BFE6F5',           // 배경 이미지 상단 하늘색 (베이스 fill용)
-  brand: '#16af5d',
-  brandDimmed: '#9DC9AA',
-  lightGray: '#f2f2f2',
-  darkGray: '#93a09a',
-  textBlack: '#000000',
-  textGray: '#7a7a7a',
-  logoBg: '#d9d9d9',
-};
+const IDLE_FLOWER = require('../../assets/lottie/idle_flower.json');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -111,8 +103,8 @@ export default function HomeScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      {/* 1) 하늘색 베이스 (이미지 위쪽 잘릴 때 노출됨) */}
-      <View style={[StyleSheet.absoluteFill, { backgroundColor: COLORS.sky }]} />
+      {/* 1) 하늘색 베이스 */}
+      <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.sky }]} />
       {/* 2) 배경 이미지 — 하단 앵커, 비율 유지 */}
       <Image source={BG_IMAGE} style={styles.bgImage} resizeMode="cover" />
 
@@ -126,14 +118,14 @@ export default function HomeScreen({ navigation }: Props) {
             onPress={handlePrevMonth}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 4 }}
           >
-            <Ionicons name="chevron-back" size={18} color={COLORS.textBlack} />
+            <Ionicons name="chevron-back" size={18} color="#000" />
           </TouchableOpacity>
           <Text style={styles.headerDate}>{headerDate}</Text>
           <TouchableOpacity
             onPress={handleNextMonth}
             hitSlop={{ top: 10, bottom: 10, left: 4, right: 10 }}
           >
-            <Ionicons name="chevron-forward" size={18} color={COLORS.textBlack} />
+            <Ionicons name="chevron-forward" size={18} color="#000" />
           </TouchableOpacity>
         </View>
         <TouchableOpacity
@@ -141,49 +133,55 @@ export default function HomeScreen({ navigation }: Props) {
           onPress={() => navigation.navigate('Settings')}
           accessibilityLabel="설정"
         >
-          <Ionicons name="settings-outline" size={24} color={COLORS.textBlack} />
+          <Ionicons name="settings-outline" size={24} color="#000" />
         </TouchableOpacity>
       </View>
 
-      {/* 캐릭터 — 활성/비활성 모두 동일 위치 (bottom: '23%') */}
-      <View style={styles.characterAnchor} pointerEvents="box-none">
+      {/* 말풍선 — active 일 때만 (figma top=234, center) */}
+      {isActive && (
+        <View style={styles.bubbleAnchor} pointerEvents="none">
+          <SpeechBubble tailAlign="center" width="auto">
+            <Text variant="xsMedium" align="center" style={styles.bubbleText}>
+              {'지금은 '}
+              <Text variant="xsMedium" align="center" style={styles.bubbleHighlight}>
+                걱정타임
+              </Text>
+              {'이에요!\n메모해둔 걱정을 정리하거나,\n걱정이 없다면 필사로 시작해보세요 📖'}
+            </Text>
+          </SpeechBubble>
+        </View>
+      )}
+
+      {/* main_char (svg) — active/idle 모두 동일 위치 */}
+      <View style={styles.mainCharAnchor} pointerEvents="none">
+        <MainCharSvg width="100%" height="100%" />
+      </View>
+
+      {/* sub_char (Idle Flower lottie) — active/idle 모두 머리 위 */}
+      <View style={styles.subCharAnchor} pointerEvents="none">
         <LottieView
-          source={require('../../assets/lottie/character_idle.json')}
+          source={IDLE_FLOWER}
           autoPlay
           loop
-          style={styles.character}
+          style={styles.subCharLottie}
           resizeMode="contain"
         />
       </View>
 
-      {/* 말풍선 — 활성일 때만, 캐릭터 위에 절대 위치 */}
-      {isActive && (
-        <View style={styles.bubbleAnchor} pointerEvents="none">
-          <View style={styles.speechBubble}>
-            <Text style={styles.bubbleText}>
-              지금은 <Text style={styles.bubbleHighlight}>걱정타임이에요!</Text>{'\n'}
-              메모해둔 걱정을 정리하거나,{'\n'}
-              걱정이 없다면 필사로 시작해보세요 🍃
-            </Text>
-          </View>
-          <View style={styles.bubbleTail} />
-        </View>
-      )}
-
-      {/* 하단 액션 영역 — 공용 MainButton 컴포넌트 */}
+      {/* 하단 액션 영역 */}
       <View style={styles.bottomBar}>
         <MainButton
           status={isActive ? 'worry-time' : 'idle'}
           remainingTime={countdown}
           onPressLeft={
             isActive
-              ? () => navigation.navigate('Copywrite')   // 필사하기
-              : () => navigation.navigate('NotWorryTime') // 카운트다운 박스 탭 — 앞당기기 안내
+              ? () => navigation.navigate('Copywrite')
+              : () => navigation.navigate('NotWorryTime')
           }
           onPressRight={
             isActive
-              ? () => navigation.navigate('WorryTime')   // 걱정 정리하기
-              : () => navigation.navigate('Memo')        // 걱정 맡겨두기
+              ? () => navigation.navigate('WorryTimeEntry')  // 5초 카운트다운 후 WorryTime
+              : () => navigation.navigate('Memo')
           }
         />
       </View>
@@ -221,21 +219,21 @@ function formatMmSs(totalSec: number): string {
 }
 
 function formatDiff(fromMs: number, toMs: number): string {
+  // 피그마 main-button 좌측 시계 박스 사양 — 항상 HH:MM 형식
   const diffSec = Math.max(0, Math.floor((toMs - fromMs) / 1000));
   const h = Math.floor(diffSec / 3600);
   const m = Math.floor((diffSec % 3600) / 60);
-  if (h > 0) return `${h}시간 ${m}분`;
-  return `${m}분`;
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
 function formatYearMonth(d: Date): string {
   return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
 }
 
-// ─── 스타일 (반응형: flex + percentage) ─────────────────
+// ─── 스타일 (반응형: 화면 비율 % + aspectRatio) ─────────────
 
 const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: COLORS.white },
+  screen: { flex: 1, backgroundColor: Colors.white },
 
   // 헤더
   header: {
@@ -248,10 +246,10 @@ const styles = StyleSheet.create({
   },
   logo: {
     width: 40, height: 40, borderRadius: 8,
-    backgroundColor: COLORS.logoBg,
+    backgroundColor: '#d9d9d9',
     justifyContent: 'center', alignItems: 'center',
   },
-  logoText: { fontSize: 12, color: COLORS.textBlack, letterSpacing: -0.24 },
+  logoText: { fontSize: 12, color: '#000', letterSpacing: -0.24 },
 
   headerCenter: {
     flexDirection: 'row',
@@ -259,7 +257,7 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   headerDate: {
-    fontSize: 16, fontWeight: '600', color: COLORS.textBlack,
+    fontSize: 16, fontWeight: '600', color: '#000',
     letterSpacing: -0.32,
     minWidth: 80, textAlign: 'center',
   },
@@ -269,8 +267,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center', alignItems: 'center',
   },
 
-  // 배경 이미지 — 하단 앵커, 비율 유지
-  // 화면 너비에 맞춰 800/360 비율로 그려짐, hills가 항상 화면 하단에 완전히 보임
+  // 배경 이미지 (피그마와 동일 비율)
   bgImage: {
     position: 'absolute',
     bottom: 0,
@@ -279,68 +276,46 @@ const styles = StyleSheet.create({
     aspectRatio: 360 / 800,
   },
 
-  // 캐릭터 — 활성/비활성 모두 동일 위치
-  // 풀밭 라인(약 화면 65% from top)에서 발이 살짝 묻히도록 23%
-  characterAnchor: {
-    position: 'absolute',
-    bottom: '23%',
-    left: 0, right: 0,
-    alignItems: 'center',
-  },
-
-  // 말풍선 — 캐릭터 머리 위, 활성일 때만 표시
-  // 캐릭터 height ≈ 화면 너비 × 60% × (207/196) ≈ 화면 너비 × 63%
-  // S25(360x780): 캐릭터 height ≈ 227dp = 29% of screen height
-  // → 말풍선 bottom = 23% (캐릭터 bottom) + 29% (캐릭터 height) ≈ 52%
+  // 말풍선 (figma top=234 → 29.25%, center 정렬)
   bubbleAnchor: {
     position: 'absolute',
-    bottom: '52%',
-    left: 0, right: 0,
+    top: '28%',
+    left: 0,
+    right: 0,
     alignItems: 'center',
   },
-  speechBubble: {
-    backgroundColor: COLORS.white,
-    borderRadius: 20,
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    maxWidth: '85%',
-    shadowColor: '#000',
-    shadowOpacity: 0.1,
-    shadowOffset: { width: 0, height: 3 },
-    shadowRadius: 8,
-    elevation: 4,
-  },
   bubbleText: {
-    fontSize: 13,
-    lineHeight: 20,
-    color: COLORS.textBlack,
-    textAlign: 'center',
-    letterSpacing: -0.26,
+    lineHeight: 16, // 12 * 1.3
   },
   bubbleHighlight: {
-    color: COLORS.brand,
-    fontWeight: '700',
-  },
-  bubbleTail: {
-    width: 0,
-    height: 0,
-    marginTop: -1,
-    borderLeftWidth: 10,
-    borderRightWidth: 10,
-    borderTopWidth: 12,
-    borderLeftColor: 'transparent',
-    borderRightColor: 'transparent',
-    borderTopColor: COLORS.white,
+    color: Colors.mainGreen,
+    fontWeight: '600',
   },
 
-  // 캐릭터 (반응형: 화면 너비의 60%, 비율 유지)
-  // 피그마 spec: 196x207 ≈ 1:1.056
-  character: {
-    width: '60%',
+  // main_char (figma left=82 top=346 196×207)
+  mainCharAnchor: {
+    position: 'absolute',
+    left: '22.8%',  // 82/360
+    top: '43.25%',  // 346/800
+    width: '54.4%', // 196/360
     aspectRatio: 196 / 207,
   },
 
-  // 하단 액션 — MainButton 자체가 width=320 고정. 중앙 정렬.
+  // sub_char (figma left=152 top=317 57×59) — Lottie 내부 padding 보정으로 25% 사용
+  // (figma 15.8% 그대로면 Lottie 캔버스 안의 꽃이 너무 작게 보임)
+  subCharAnchor: {
+    position: 'absolute',
+    left: '38.2%',   // 25%가 되어 가운데 정렬되도록 보정 (152/360 = 42.2% 였던 중심 유지)
+    top: '37%',    // 살짝 위로 올려 머리 위에 자연스럽게
+    width: '25%',
+    aspectRatio: 57 / 59,
+  },
+  subCharLottie: {
+    width: '100%',
+    height: '100%',
+  },
+
+  // 하단 액션 — MainButton width=320 고정 중앙 정렬
   bottomBar: {
     position: 'absolute',
     bottom: 32,

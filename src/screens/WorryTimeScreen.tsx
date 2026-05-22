@@ -27,6 +27,7 @@ import {
   getUserProfile, saveUserProfile,
   getTimerState,
   incrementWorryCompleteCount,
+  getCycleMemos,
 } from '../storage/storage';
 import type { UserProfile, MemoEntry } from '../storage/types';
 import { startTimer, completeTimer } from '../timer/timerService';
@@ -42,23 +43,6 @@ type Props = NativeStackScreenProps<RootStackParamList, 'WorryTime'>;
 
 // ─── 캐릭터 말풍선 phrase (assets/worry_hints.json) ───────
 const WORRY_HINTS = worryHintsData as string[];
-
-// ─── 6개 임시 메모 (공백 미포함 30자 이내) ───────────────
-function makePlaceholderMemos(): MemoEntry[] {
-  const now = Date.now();
-  const texts = [
-    '내일 발표가 너무 걱정돼서 잠이 안 와요.',
-    '친구와의 약속이 부담스러워요.',
-    '시험 준비를 아직 못해서 불안해요.',
-    '부모님께 성적 말씀드리기 무서워요.',
-    '진로에 대한 고민이 많아요.',
-    '자꾸 과거의 실수가 떠올라 힘들어요.',
-  ];
-  return texts.map((text, i) => ({
-    text,
-    createdAt: new Date(now - (i + 1) * 1000 * 60 * 17).toISOString(),
-  }));
-}
 
 function pickRandomHint(): string {
   return WORRY_HINTS[Math.floor(Math.random() * WORRY_HINTS.length)];
@@ -93,13 +77,13 @@ export default function WorryTimeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { wp, hp, width, height } = useResponsive();
   const [hint] = useState(() => pickRandomHint());
-  const [memos] = useState<MemoEntry[]>(() => makePlaceholderMemos());
+  const [memos, setMemos] = useState<MemoEntry[]>([]);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [submitting, setSubmitting] = useState(false);
 
-  // mount: profile 로드 + timer 시작 (없으면 fallback)
+  // mount: profile 로드 + timer 시작 (없으면 fallback) + 실제 메모 로드
   useEffect(() => {
     (async () => {
       const p = await getUserProfile();
@@ -115,6 +99,10 @@ export default function WorryTimeScreen({ navigation }: Props) {
         timerState = await getTimerState();
       }
       setStartedAt(timerState.startedAt);
+
+      // 이번 사이클에 작성된 메모(addMemo로 저장된) 로드
+      const cycleMemos = await getCycleMemos();
+      setMemos(cycleMemos);
     })();
   }, [navigation]);
 
@@ -160,8 +148,8 @@ export default function WorryTimeScreen({ navigation }: Props) {
       const count = await incrementWorryCompleteCount();
       const worryHour = profile.worryTime.hour;
 
-      // TODO 테스트 후 환원: 실제 값은 2 (현재 테스트를 위해 1로 임시 변경)
-      const CHECKIN_THRESHOLD = 1;
+      // 걱정타임 2번째 완료 시 점검 안내 모달 (1회성)
+      const CHECKIN_THRESHOLD = 2;
 
       if (count === CHECKIN_THRESHOLD) {
         // navigate: WorryTime 화면을 history에 유지 → 모달 뒤에 걱정 화면 보임

@@ -10,7 +10,7 @@
  *   - Title ↔ picker: gap 33.5
  *   - Picker ↔ button: gap 33.5
  *   - Picker: 7 visible rows × 행 높이 ~40
- *   - 3개 휠: [시 0~23] [":"] [분 0,5,...,55] gap 30 [오전/오후]
+ *   - 3개 휠: [시 1~12] [":"] [분 0,5,...,55] gap 30 [오전/오후]
  *   - 시 ↔ ":" gap 5, ":" ↔ 분 gap 5
  *   - 선택: Typography.displayLarge (24/700) textPrimary
  *   - 비선택: Typography.heading (20/600) lightGray400
@@ -20,7 +20,8 @@
  *   - 단, 폰트 사이즈는 토큰 그대로 (가독성)
  *
  * 분 단위: 5분 snap. initialMinute는 가장 가까운 5분으로 반올림.
- * 오전/오후 휠은 시 휠과 linked — 오전→오후 전환 시 시 ±12.
+ * 시 휠 (1~12) + 오전/오후 휠은 독립적으로 동작.
+ * onConfirm 시 12시간제 → 24시간제 변환 (parent는 hour24 받음).
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -51,9 +52,22 @@ export interface TimePickerSheetProps {
 const VISIBLE_ROWS = 7;
 const PAD_ROWS = Math.floor(VISIBLE_ROWS / 2); // 3
 
-const HOURS = Array.from({ length: 24 }, (_, i) => i); // 0..23
+const HOURS = Array.from({ length: 12 }, (_, i) => i + 1); // 1..12
 const MINUTES = Array.from({ length: 12 }, (_, i) => i * 5); // 0,5,...,55
 const PERIODS = ['오전', '오후'] as const;
+
+// 24시간제 → 12시간제 변환
+function to12h(hour24: number): { hour12: number; isPM: boolean } {
+  const isPM = hour24 >= 12;
+  const mod = hour24 % 12;
+  const hour12 = mod === 0 ? 12 : mod;
+  return { hour12, isPM };
+}
+
+// 12시간제 → 24시간제 변환
+function to24h(hour12: number, isPM: boolean): number {
+  return (hour12 % 12) + (isPM ? 12 : 0);
+}
 
 function snapMinute(m: number): number {
   return Math.min(55, Math.max(0, Math.round(m / 5) * 5));
@@ -164,25 +178,28 @@ export function TimePickerSheet({
   const gapW = wp(20);
   const periodW = wp(48);
 
-  const [hour24, setHour24] = useState(initialHour);
+  // 12시간제 + 오전/오후 독립 state (initialHour 는 24시간제 → 변환)
+  const initial = to12h(initialHour);
+  const [hour12, setHour12] = useState(initial.hour12);
+  const [isPM, setIsPM] = useState(initial.isPM);
   const [minute, setMinute] = useState(snapMinute(initialMinute));
 
   useEffect(() => {
     if (visible) {
-      setHour24(initialHour);
+      const next = to12h(initialHour);
+      setHour12(next.hour12);
+      setIsPM(next.isPM);
       setMinute(snapMinute(initialMinute));
     }
   }, [visible, initialHour, initialMinute]);
 
-  // 오전/오후 = hour24 ≥ 12 (linked)
-  const periodIdx = hour24 >= 12 ? 1 : 0;
+  const periodIdx = isPM ? 1 : 0;
   const handlePeriodChange = (idx: number) => {
-    if (idx === 0 && hour24 >= 12) setHour24(hour24 - 12);
-    else if (idx === 1 && hour24 < 12) setHour24(hour24 + 12);
+    setIsPM(idx === 1);
   };
 
   const handleConfirm = () => {
-    onConfirm(hour24, minute);
+    onConfirm(to24h(hour12, isPM), minute);
   };
 
   return (
@@ -217,11 +234,11 @@ export function TimePickerSheet({
             {/* 좌측 여백 (오른쪽 gap + am/pm 너비만큼)을 둬서 시:분이 중앙에 오도록 맞춤 */}
             <View style={{ width: gapW + periodW }} pointerEvents="none" />
 
-            {/* 시 + ":" + 분 (left group) */}
+            {/* 시 + ":" + 분 (left group) — 시는 1~12 */}
             <WheelColumn
               items={HOURS}
-              selectedIndex={hour24}
-              onChange={setHour24}
+              selectedIndex={HOURS.indexOf(hour12)}
+              onChange={(i) => setHour12(HOURS[i])}
               itemHeight={ITEM_HEIGHT}
               width={hourW}
             />
