@@ -7,6 +7,7 @@ export const STORAGE_KEYS = {
   PROGRESS_COUNT: 'progress:completedCount',
   COPYWRITE_SEEN_IDS: 'copywrite:seenIds',
   WORRY_COMPLETE_COUNT: 'worry:completeCount',
+  FLOWER_CYCLE_USED: 'flower:cycle:used',  // 이번 7개 사이클에서 사용한 type 배열
 } as const;
 
 // 날짜 기반 키 생성 (1차 알림 날짜 기준)

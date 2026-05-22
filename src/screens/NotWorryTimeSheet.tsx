@@ -17,8 +17,8 @@ import React, { useRef, useState } from 'react';
 import { View, StyleSheet, Pressable, Alert } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { startAdvanced } from '../timer/timerService';
-import { getTimerState } from '../storage/storage';
+import { getTimerState, getUserProfile } from '../storage/storage';
+import { resolveState } from '../timer/stateMachine';
 import { Button, Card, Text } from '../components/ui';
 import { Colors, Spacing } from '../theme';
 
@@ -38,19 +38,26 @@ export default function NotWorryTimeSheet({ navigation }: Props) {
     setAdvancing(true);
 
     try {
-      // 2) 사이클 중복 방지 — 이미 앞당기기 사용했거나 timer 진행 중이면 차단
-      const state = await getTimerState();
-      if (state.isAdvanced || state.startedAt) {
-        Alert.alert('알림', '오늘 걱정타임은 이미 시작했어요.');
+      // 2) resolveState 로 현재 사이클 상태 판단 — 'idle' 또는 'active' 일 때만 통과
+      //    (locked인데 다른 날이면 resolveState 가 자동으로 idle/active 반환)
+      const p = await getUserProfile();
+      const timer = await getTimerState();
+      if (!p) {
+        navigation.goBack();
+        return;
+      }
+      const workerState = resolveState(timer, new Date(), p.worryTime);
+      if (workerState !== 'idle' && workerState !== 'active') {
+        Alert.alert('알림', '오늘 걱정타임은 이미 사용했어요.');
         navigation.goBack();
         return;
       }
 
-      await startAdvanced();
-      // 5초 카운트다운 진입 화면을 거쳐 WorryTime 으로
+      // startAdvanced 호출은 실제 WorryTime mount 시점에 (idle 이면 자동 호출)
+      // 여기서는 5초 카운트다운 화면으로만 이동 — exit 해도 부작용 없음
       navigation.replace('WorryTimeEntry');
     } catch (e) {
-      console.error('[NotWorryTimeSheet] startAdvanced 오류:', e);
+      console.error('[NotWorryTimeSheet] handleAdvance 오류:', e);
       advancingRef.current = false;
       setAdvancing(false);
     }

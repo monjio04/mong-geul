@@ -120,8 +120,12 @@ export default function CopywriteScreen({ navigation }: Props) {
         await startAdvanced();
       }
       const result = await completeTimer(p.worryTime);
-      // 보상 화면 → 3초 후 자동 Home reset (필사용 멘트, 시간대 무관)
-      navigation.replace('Reward', { from: 'copywrite' });
+      // 보상 화면 → 5초 후 FlowerBloom 모달 (꽃/새싹 피는 모션)
+      navigation.replace('Reward', {
+        from: 'copywrite',
+        status: result.status,
+        flowerType: result.flowerType,
+      });
       console.log('[Copywrite] 완료:', result);
     } catch (e) {
       console.error('[Copywrite] complete error:', e);

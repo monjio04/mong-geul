@@ -17,7 +17,7 @@
  *      우측 "걱정 맡겨두기" → Memo
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Image,
 } from 'react-native';
@@ -27,18 +27,19 @@ import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { getUserProfile, getTimerState } from '../storage/storage';
-import type { UserProfile, WorkerState } from '../storage/types';
+import { getUserProfile, getTimerState, getMonthRecords } from '../storage/storage';
+import type { UserProfile, WorkerState, DayRecord } from '../storage/types';
 import { resolveState } from '../timer/stateMachine';
 import { getNextPrimaryAlarm } from '../timer/worryTimeWindow';
 import { MainButton } from '../components/MainButton';
 import { SpeechBubble } from '../components/SpeechBubble';
+import { FlowerGarden } from '../components/FlowerGarden';
+import { navigationRef } from '../../App';
 import { Text } from '../components/ui';
 import { Colors } from '../theme';
-import MainCharSvg from '../../assets/images/main_char.svg';
-
 const BG_IMAGE = require('../../assets/images/background.png');
 const IDLE_FLOWER = require('../../assets/lottie/idle_flower.json');
+const MAIN_CHAR_IDLE = require('../../assets/lottie/character_idle.json');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
@@ -49,38 +50,80 @@ export default function HomeScreen({ navigation }: Props) {
   const [now, setNow] = useState<Date>(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 현재 표시 월 (chevron으로 이동) — 기본: 오늘 기준 연/월
+  const today = new Date();
+  const [displayedMonth, setDisplayedMonth] = useState<{ year: number; month: number }>({
+    year: today.getFullYear(),
+    month: today.getMonth() + 1,
+  });
+  const [monthRecords, setMonthRecords] = useState<Record<string, DayRecord>>({});
+
+  // refresh 로직 — useFocusEffect + navigation state listener 둘 다에서 사용
+  const refresh = useCallback(async () => {
+    const currentNow = new Date();
+    const p = await getUserProfile();
+    if (!p) {
+      (navigation as any).reset({ index: 0, routes: [{ name: 'Onboarding' }] });
+      return;
+    }
+    const timerState = await getTimerState();
+    const state = resolveState(timerState, currentNow, p.worryTime);
+    setProfile(p);
+    setAppState(state);
+    setNow(currentNow);
+    setCountdown(computeCountdown(state, currentNow, p, timerState));
+
+    // 현재 표시 월의 record 로드 (꽃밭 표시용)
+    const records = await getMonthRecords(displayedMonth.year, displayedMonth.month);
+    setMonthRecords(records);
+  }, [navigation, displayedMonth.year, displayedMonth.month]);
+
   useFocusEffect(
     useCallback(() => {
-      let cancelled = false;
-
-      const refresh = async () => {
-        const currentNow = new Date();
-        if (cancelled) return;
-
-        const p = await getUserProfile();
-        if (!p) {
-          (navigation as any).reset({ index: 0, routes: [{ name: 'Onboarding' }] });
-          return;
-        }
-        const timerState = await getTimerState();
-        const state = resolveState(timerState, currentNow, p.worryTime);
-
-        if (cancelled) return;
-        setProfile(p);
-        setAppState(state);
-        setNow(currentNow);
-        setCountdown(computeCountdown(state, currentNow, p, timerState));
-      };
-
       refresh();
-      intervalRef.current = setInterval(refresh, 30 * 1000);
-
+      // 5초 간격 폴링 (이전 30초 → 더 빠른 풀밭 갱신 응답)
+      intervalRef.current = setInterval(refresh, 5 * 1000);
       return () => {
-        cancelled = true;
         if (intervalRef.current) clearInterval(intervalRef.current);
       };
-    }, [navigation]),
+    }, [refresh]),
   );
+
+  // transparentModal (FlowerBloom 등) 위에 있을 때 Home 은 focus blur 안 됨 →
+  // useFocusEffect re-fire 안 됨. App-level navigationRef 로 root state 변경 감지.
+  // ready 안 됐으면 100ms 간격 폴링.
+  useEffect(() => {
+    let unsub: (() => void) | null = null;
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const attach = () => {
+      unsub = navigationRef.addListener('state', () => {
+        const state = navigationRef.getRootState();
+        if (!state) return;
+        const topName = state.routes[state.routes.length - 1]?.name;
+        if (topName === 'Home') {
+          if (__DEV__) console.log('[Home] state listener → refresh');
+          refresh();
+        }
+      });
+    };
+
+    if (navigationRef.isReady()) {
+      attach();
+    } else {
+      intervalId = setInterval(() => {
+        if (navigationRef.isReady()) {
+          if (intervalId) clearInterval(intervalId);
+          attach();
+        }
+      }, 100);
+    }
+
+    return () => {
+      if (unsub) unsub();
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [refresh]);
 
   if (!profile) {
     return <SafeAreaView style={styles.screen} edges={['top']} />;
@@ -91,14 +134,22 @@ export default function HomeScreen({ navigation }: Props) {
     appState === 'inProgress' ||
     appState === 'advanced';
 
-  const headerDate = formatYearMonth(now);
+  const headerDate = `${displayedMonth.year}.${String(displayedMonth.month).padStart(2, '0')}`;
 
-  // TODO: 월별 꽃밭 네비게이션 — 현재 표시 월 state 추가 예정
+  // 월별 꽃밭 네비게이션
   const handlePrevMonth = () => {
-    console.log('[Home] prev month — 추후 꽃밭 네비게이션 연결');
+    setDisplayedMonth((m) => {
+      const month = m.month - 1;
+      if (month < 1) return { year: m.year - 1, month: 12 };
+      return { year: m.year, month };
+    });
   };
   const handleNextMonth = () => {
-    console.log('[Home] next month — 추후 꽃밭 네비게이션 연결');
+    setDisplayedMonth((m) => {
+      const month = m.month + 1;
+      if (month > 12) return { year: m.year + 1, month: 1 };
+      return { year: m.year, month };
+    });
   };
 
   return (
@@ -107,6 +158,9 @@ export default function HomeScreen({ navigation }: Props) {
       <View style={[StyleSheet.absoluteFill, { backgroundColor: Colors.sky }]} />
       {/* 2) 배경 이미지 — 하단 앵커, 비율 유지 */}
       <Image source={BG_IMAGE} style={styles.bgImage} resizeMode="cover" />
+
+      {/* 3) 꽃밭 — 표시 월의 record 들을 언덕 위에 idle 로 배치 (캐릭터보다 뒤) */}
+      <FlowerGarden records={monthRecords} />
 
       {/* 헤더 */}
       <View style={styles.header}>
@@ -152,9 +206,15 @@ export default function HomeScreen({ navigation }: Props) {
         </View>
       )}
 
-      {/* main_char (svg) — active/idle 모두 동일 위치 */}
+      {/* main_char (lottie idle) — active/idle 모두 동일 위치 */}
       <View style={styles.mainCharAnchor} pointerEvents="none">
-        <MainCharSvg width="100%" height="100%" />
+        <LottieView
+          source={MAIN_CHAR_IDLE}
+          autoPlay
+          loop
+          style={styles.mainCharLottie}
+          resizeMode="contain"
+        />
       </View>
 
       {/* sub_char (Idle Flower lottie) — active/idle 모두 머리 위 */}
@@ -226,10 +286,6 @@ function formatDiff(fromMs: number, toMs: number): string {
   return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 }
 
-function formatYearMonth(d: Date): string {
-  return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}`;
-}
-
 // ─── 스타일 (반응형: 화면 비율 % + aspectRatio) ─────────────
 
 const styles = StyleSheet.create({
@@ -299,6 +355,10 @@ const styles = StyleSheet.create({
     top: '43.25%',  // 346/800
     width: '54.4%', // 196/360
     aspectRatio: 196 / 207,
+  },
+  mainCharLottie: {
+    width: '100%',
+    height: '100%',
   },
 
   // sub_char (figma left=152 top=317 57×59) — Lottie 내부 padding 보정으로 25% 사용

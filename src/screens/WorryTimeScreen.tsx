@@ -30,7 +30,8 @@ import {
   getCycleMemos,
 } from '../storage/storage';
 import type { UserProfile, MemoEntry } from '../storage/types';
-import { startTimer, completeTimer } from '../timer/timerService';
+import { startTimer, completeTimer, startAdvanced } from '../timer/timerService';
+import { resolveState } from '../timer/stateMachine';
 import { Button, Text } from '../components/ui';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { AudioToggleIcon } from '../components/AudioToggleIcon';
@@ -94,6 +95,15 @@ export default function WorryTimeScreen({ navigation }: Props) {
       setProfile(p);
 
       let timerState = await getTimerState();
+
+      // NotWorryTime 경로(idle 상태)로 진입 시 startAdvanced 호출 → 사이클 앞당기기
+      // Home active 경로면 이미 active 라 호출 안 됨
+      const state = resolveState(timerState, new Date(), p.worryTime);
+      if (state === 'idle' && !timerState.startedAt) {
+        await startAdvanced();
+        timerState = await getTimerState();
+      }
+
       if (!timerState.startedAt) {
         await startTimer(p.focusMinutes);
         timerState = await getTimerState();
@@ -154,9 +164,19 @@ export default function WorryTimeScreen({ navigation }: Props) {
       if (count === CHECKIN_THRESHOLD) {
         // navigate: WorryTime 화면을 history에 유지 → 모달 뒤에 걱정 화면 보임
         // (replace 사용 시 WorryTime이 스택에서 빠져 Home이 뒤로 비치는 문제)
-        navigation.navigate('WorryCheckIn', { from: 'worry', worryHour });
+        navigation.navigate('WorryCheckIn', {
+          from: 'worry',
+          worryHour,
+          status: result.status,
+          flowerType: result.flowerType,
+        });
       } else {
-        navigation.replace('Reward', { from: 'worry', worryHour });
+        navigation.replace('Reward', {
+          from: 'worry',
+          worryHour,
+          status: result.status,
+          flowerType: result.flowerType,
+        });
       }
       console.log('[WorryTime] 완료:', result, 'count:', count);
     } catch (e) {

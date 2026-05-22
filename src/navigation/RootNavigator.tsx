@@ -18,6 +18,7 @@ import RewardScreen from '../screens/RewardScreen';
 import WorryCheckInSheet from '../screens/WorryCheckInSheet';
 import OnboardingGuideScreen from '../screens/OnboardingGuideScreen';
 import WorryTimeEntryScreen from '../screens/WorryTimeEntryScreen';
+import FlowerBloomScreen from '../screens/FlowerBloomScreen';
 import { isOnboardingDone, initSchema } from '../storage/storage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -98,6 +99,15 @@ export default function RootNavigator() {
       <Stack.Screen
         name="OnboardingGuide"
         component={OnboardingGuideScreen}
+        options={{
+          presentation: 'transparentModal',
+          animation: 'fade',
+          gestureEnabled: false,
+        }}
+      />
+      <Stack.Screen
+        name="FlowerBloom"
+        component={FlowerBloomScreen}
         options={{
           presentation: 'transparentModal',
           animation: 'fade',

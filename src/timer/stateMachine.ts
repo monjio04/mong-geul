@@ -24,6 +24,24 @@ import {
 // ─── 상태 판단 ────────────────────────────────────────────
 
 /**
+ * "사이클 일자" 경계 — 매일 새벽 04:00 시작 기준.
+ * 새벽 4시 이전(00:00 ~ 03:59)은 전날 일자에 포함.
+ * 두 Date의 사이클 일자 비교 시 사용.
+ */
+function getCycleDayBoundaryTs(d: Date): number {
+  const boundary = new Date(d);
+  boundary.setHours(4, 0, 0, 0);
+  if (d < boundary) {
+    boundary.setDate(boundary.getDate() - 1);
+  }
+  return boundary.getTime();
+}
+
+function isSameCycleDay(a: Date, b: Date): boolean {
+  return getCycleDayBoundaryTs(a) === getCycleDayBoundaryTs(b);
+}
+
+/**
  * 앱 진입 시 현재 상태를 계산해서 반환
  * AsyncStorage에서 읽은 timerState + 현재 시각 + 설정 시각으로 판단
  */
@@ -46,12 +64,23 @@ export function resolveState(
 
   // 3. 잠금 상태
   if (timerState.isLocked) {
-    // 다음 1차 알림이 왔으면 자동 해제 (새 사이클)
-    const nextPrimary = getNextPrimaryAlarm(now, worryTime);
     const lockedAt = timerState.lockedAt ? new Date(timerState.lockedAt) : null;
 
+    // (a) "사이클 일자"(매일 새벽 04:00 시작) 가 다르면 자동 해제 — 다음 일자엔 다시 작성 가능
+    //     예: 어제 16:00 작성 → 오늘 04:00 이후엔 unlock
+    //         오늘 15:00 작성 → 내일 04:00 이전까지는 lock 유지
+    if (lockedAt && !isSameCycleDay(lockedAt, now)) {
+      // worryTime 도달 여부에 따라 active or idle
+      const primaryAlarm = getNextPrimaryAlarm(now, worryTime);
+      const prevPrimary = new Date(primaryAlarm.getTime() - 24 * 60 * 60 * 1000);
+      if (isInWorryWindow(now, prevPrimary)) return 'active';
+      if (isInWorryWindow(now, primaryAlarm)) return 'active';
+      return 'idle';
+    }
+
+    // (b) 같은 사이클 일자 — 다음 1차 알림이 왔으면 자동 해제 (안전망)
+    const nextPrimary = getNextPrimaryAlarm(now, worryTime);
     if (lockedAt && nextPrimary > lockedAt && now >= nextPrimary) {
-      // 다음 사이클이 시작됐으므로 해제
       return 'active';
     }
     return 'locked';

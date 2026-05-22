@@ -16,11 +16,21 @@ export interface UserProfile {
 // ─── 하루 기록 ─────────────────────────────────────────
 export type RecordStatus = 'flower' | 'sprout' | 'empty';
 
+export type FlowerType = 1 | 2 | 3 | 4 | 5 | 6 | 7;
+
+/** 풀밭 안 꽃 위치 — 0~1 비율 (반응형, 화면 크기와 무관) */
+export interface FlowerPosition {
+  x: number; // 0~1 (좌→우)
+  y: number; // 0~1 (위→아래)
+}
+
 export interface DayRecord {
   status: RecordStatus;
   completedAt: string | null;   // ISO timestamp
   isDelayed: boolean;           // 미루기 후 완료
   isAdvanced: boolean;          // 앞당기기 후 완료
+  flowerType?: FlowerType;      // status='flower' 일 때 — 7종 중 1개
+  position?: FlowerPosition;    // flower/sprout 시 Home 언덕 안 좌표
 }
 
 // ─── 메모 ──────────────────────────────────────────────

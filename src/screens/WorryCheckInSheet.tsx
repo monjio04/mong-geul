@@ -22,7 +22,7 @@ import { getUserProfile } from '../storage/storage';
 type Props = NativeStackScreenProps<RootStackParamList, 'WorryCheckIn'>;
 
 export default function WorryCheckInSheet({ route, navigation }: Props) {
-  const { from, worryHour } = route.params;
+  const { from, worryHour, status, flowerType } = route.params;
   const [nickname, setNickname] = useState<string>('');
 
   useEffect(() => {
@@ -34,7 +34,7 @@ export default function WorryCheckInSheet({ route, navigation }: Props) {
 
   // "충분해요" — 보상 화면으로 정상 진행
   const handleEnough = () => {
-    navigation.replace('Reward', { from, worryHour });
+    navigation.replace('Reward', { from, worryHour, status, flowerType });
   };
 
   // "설정하러 가기" — Home reset + Settings 진입 + FocusTimePicker 자동 열림

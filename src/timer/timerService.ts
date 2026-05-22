@@ -26,6 +26,7 @@ import {
 } from '../notifications/scheduler';
 import { getAlarmDateString, getNextPrimaryAlarm } from './worryTimeWindow';
 import type { WorryTime } from './worryTimeWindow';
+import { pickFlowerType, pickFlowerPosition } from './flowerCycle';
 
 // ─── 타이머 시작 ─────────────────────────────────────────
 
@@ -59,6 +60,7 @@ export function isTimerExpired(startedAt: string, focusMinutes: number): boolean
 
 export interface CompleteResult {
   status: 'flower' | 'sprout';
+  flowerType?: 1 | 2 | 3 | 4 | 5 | 6 | 7; // flower 시에만
   weeklyTriggered: boolean;
 }
 
@@ -81,13 +83,18 @@ export async function completeTimer(
   const status: 'flower' | 'sprout' =
     isDelayed || isAdvanced ? 'sprout' : 'flower';
 
-  // 1. 기록 저장
+  // 1. 기록 저장 — 꽃이면 flowerType(7개 사이클) 추첨, 새싹이면 type 없음
+  // 위치는 둘 다 풀밭 안 랜덤 (Home 꽃밭에 표시 시 사용)
   const alarmDate = state.alarmDate ?? getAlarmDateString(getNextPrimaryAlarm(now, worryTime));
+  const flowerType = status === 'flower' ? await pickFlowerType() : undefined;
+  const position = pickFlowerPosition();
   const record: DayRecord = {
     status,
     completedAt: now.toISOString(),
     isDelayed,
     isAdvanced,
+    flowerType,
+    position,
   };
   await saveDayRecord(alarmDate, record);
 
@@ -127,7 +134,7 @@ export async function completeTimer(
     timerEndNotifId: null,
   });
 
-  return { status, weeklyTriggered };
+  return { status, flowerType, weeklyTriggered };
 }
 
 // ─── 잠금 처리 (미완료) ───────────────────────────────────
@@ -227,5 +234,8 @@ export async function startAdvanced(): Promise<void> {
     ...state,
     isAdvanced: true,
     startedAt: new Date().toISOString(),
+    // 새 사이클 시작 → 이전 사이클의 lock 해제
+    isLocked: false,
+    lockedAt: null,
   });
 }

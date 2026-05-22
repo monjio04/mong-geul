@@ -34,13 +34,21 @@ export type RootStackParamList = {
     hour: number;
     minute: number;
   };
-  Reward: {                  // 걱정타임 완료 보상 화면 (3초 후 Home reset)
+  Reward: {                  // 걱정타임 완료 보상 화면 (5초 후 FlowerBloom)
     from: 'worry' | 'copywrite';
     worryHour?: number;      // worry 진입 시 시간대별 멘트 분기에 사용
+    status: 'flower' | 'sprout';   // 다음 FlowerBloom으로 전달
+    flowerType?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
+  };
+  FlowerBloom: {             // Reward 직후 Home 위 transparentModal — 꽃/새싹 피는 모션
+    status: 'flower' | 'sprout';
+    flowerType?: 1 | 2 | 3 | 4 | 5 | 6 | 7; // flower 시에만
   };
   WorryCheckIn: {            // 걱정타임 2번째 완료 후 안내 모달 (1회성)
     from: 'worry';
     worryHour: number;
+    status: 'flower' | 'sprout'; // Reward로 그대로 전달
+    flowerType?: 1 | 2 | 3 | 4 | 5 | 6 | 7;
   };
   OnboardingGuide: undefined; // 온보딩 종료 직후 4 슬라이드 가이드 — 홈 위 transparentModal
 };

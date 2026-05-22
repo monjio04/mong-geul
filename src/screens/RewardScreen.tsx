@@ -75,23 +75,25 @@ const FLOWER_LOTTIE = require('../../assets/lottie/reward_flower.json');
 export default function RewardScreen({ route, navigation }: Props) {
   const insets = useSafeAreaInsets();
   const { wp, hp } = useResponsive();
-  const { from, worryHour } = route.params;
+  const { from, worryHour, status, flowerType } = route.params;
 
   // 멘트 분기
   const message: RewardMessage = from === 'copywrite'
     ? COPYWRITE_MESSAGE
     : MESSAGES_BY_LABEL[getTimeLabel(worryHour ?? 7)];
 
-  // 5초 후 홈으로 자동 이동
+  // 5초 후 → Home 으로 reset + 다음 tick 에 FlowerBloom 모달
+  // (Android transparentModal 이 reset 직접에선 underlying screen 안 비치는 이슈 회피)
   useEffect(() => {
     const id = setTimeout(() => {
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Home' }],
-      });
+      navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
+      // Home mount 후 transparentModal 띄움 → underlying Home 정상 노출
+      setTimeout(() => {
+        navigation.navigate('FlowerBloom', { status, flowerType });
+      }, 100);
     }, AUTO_NAVIGATE_MS);
     return () => clearTimeout(id);
-  }, [navigation]);
+  }, [navigation, status, flowerType]);
 
   // 캐릭터 사이즈 (wp 기준)
   const charSize = wp(220);
