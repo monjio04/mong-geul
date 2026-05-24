@@ -64,6 +64,39 @@ export async function saveUserProfile(profile: UserProfile): Promise<void> {
   await setItem(STORAGE_KEYS.USER_PROFILE, profile);
 }
 
+/**
+ * pending(다음 사이클부터 적용) 필드를 active로 promote.
+ * 호출 시점:
+ *  - timerService.completeTimer / lockCycle 안에서 scheduleCycle 직전
+ *    → 다음 cycle 알람이 새 값으로 예약됨
+ *  - SettingsScreen 에서 locked/completed 상태일 때 즉시 호출
+ *    → 다음 cycle 알람이 OLD 값으로 이미 예약된 상태라면 caller가 cancel/reschedule
+ *
+ * pending 필드가 비어 있으면 no-op.
+ * 반환값: 적용 후 (또는 변경 없으면 원본) profile.
+ */
+export async function applyPendingProfile(): Promise<UserProfile | null> {
+  const profile = await getUserProfile();
+  if (!profile) return null;
+
+  let changed = false;
+  const updated: UserProfile = { ...profile };
+
+  if (profile.pendingWorryTime) {
+    updated.worryTime = profile.pendingWorryTime;
+    updated.pendingWorryTime = undefined;
+    changed = true;
+  }
+  if (profile.pendingFocusMinutes !== undefined) {
+    updated.focusMinutes = profile.pendingFocusMinutes;
+    updated.pendingFocusMinutes = undefined;
+    changed = true;
+  }
+
+  if (changed) await saveUserProfile(updated);
+  return updated;
+}
+
 // ─── 타이머 상태 ─────────────────────────────────────────
 
 const DEFAULT_TIMER_STATE: TimerState = {

@@ -34,6 +34,7 @@ import {
   type NativeSyntheticEvent,
   type NativeScrollEvent,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, Text } from './ui';
 import { Colors, Radii, useResponsive, type TypographyVariant, type ColorToken } from '../theme';
 
@@ -41,12 +42,24 @@ export interface TimePickerSheetProps {
   visible: boolean;
   initialHour: number;
   initialMinute: number;
+  /** 제목 — figma default "시작 시간을 선택해 주세요." */
   title?: string;
+  /** 부제 (figma 사양 — title 아래 작은 회색 텍스트) */
+  subtitle?: string;
   /** parent 검증용 (휠 자체는 제약 X — onConfirm 후 검증) */
   minDate?: Date;
   maxDate?: Date;
   onClose: () => void;
-  onConfirm: (hour: number, minute: number) => void;
+  /**
+   * 완료 콜백.
+   *   - void 반환 → 검증 통과 (parent 가 picker 닫기 처리)
+   *   - string 반환 → 검증 실패 → picker 안에 toast 표시 + picker 유지
+   *     (예: "새벽 4시 전까지만 설정할 수 있어요.")
+   */
+  onConfirm: (
+    hour: number,
+    minute: number,
+  ) => string | void | Promise<string | void>;
 }
 
 const VISIBLE_ROWS = 7;
@@ -74,12 +87,16 @@ function snapMinute(m: number): number {
 }
 
 // ── 휠 한 칼럼 ────────────────────────────────────────────
+type WheelColorMode = 'number' | 'period';
+
 interface WheelColumnProps<T extends string | number> {
   items: readonly T[];
   selectedIndex: number;
   onChange: (index: number) => void;
   itemHeight: number;
   width: number;
+  /** 색/사이즈 그라데이션 모드 — number(시/분: 4단계) vs period(오전/오후: 2색) */
+  colorMode?: WheelColorMode;
 }
 
 function WheelColumn<T extends string | number>({
@@ -88,8 +105,10 @@ function WheelColumn<T extends string | number>({
   onChange,
   itemHeight,
   width,
+  colorMode = 'number',
 }: WheelColumnProps<T>) {
   const ref = useRef<ScrollView>(null);
+  const { wp } = useResponsive();
   const wheelHeight = itemHeight * VISIBLE_ROWS;
   const padHeight = itemHeight * PAD_ROWS;
 
@@ -118,20 +137,33 @@ function WheelColumn<T extends string | number>({
       {items.map((item, i) => {
         const dist = Math.abs(i - selectedIndex);
         const label = typeof item === 'number' ? String(item).padStart(2, '0') : item;
-        let fontSize = 14;
-        let color = 'rgba(126, 128, 129, 0.50)';
-        let fontWeight: '500' | '700' = '500';
+        // figma 360dp 기준 fontSize → wp() 로 폰 비례 스케일
+        let fontSize = wp(14);
+        let color: string = 'rgba(126, 128, 129, 0.50)';
+        const fontWeight: '500' = '500'; // figma: 모든 글자 Inter Medium
 
-        if (dist === 0) {
-          fontSize = 24;
-          fontWeight = '700';
-          color = Colors.textPrimary;
-        } else if (dist === 1) {
-          fontSize = 18;
-          color = '#7E8081';
-        } else if (dist === 2) {
-          fontSize = 16;
-          color = 'rgba(126, 128, 129, 0.80)';
+        if (colorMode === 'period') {
+          // 오전/오후 — selected 20 black / unselected 18 #d9d9d9
+          if (dist === 0) {
+            fontSize = wp(20);
+            color = '#000000';
+          } else {
+            fontSize = wp(18);
+            color = '#d9d9d9';
+          }
+        } else {
+          // 시/분 — 4단계 그라데이션 (figma 사양)
+          if (dist === 0) {
+            fontSize = wp(20);
+            color = '#000000';
+          } else if (dist === 1) {
+            fontSize = wp(18);
+            color = '#7e8081';
+          } else if (dist === 2) {
+            fontSize = wp(16);
+            color = 'rgba(126, 128, 129, 0.8)';
+          }
+          // dist >= 3: wp(14) / rgba(126,128,129,0.5) (default)
         }
 
         return (
@@ -161,28 +193,35 @@ export function TimePickerSheet({
   visible,
   initialHour,
   initialMinute,
-  title = '다시 만날 시간을 설정해주세요.',
+  title = '시작 시간을 선택해 주세요.',
+  subtitle,
   onClose,
   onConfirm,
 }: TimePickerSheetProps) {
   const { wp, hp } = useResponsive();
+  const insets = useSafeAreaInsets();
 
   // ── 피그마 수치 → 반응형 스케일 ──
   const ITEM_HEIGHT = hp(36);
   const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS;
   const PAD_HEIGHT = ITEM_HEIGHT * PAD_ROWS;
 
-  const hourW = wp(40);
+  // figma 483:1355/1364 — 컬럼은 글자 크기만큼만 좁게 (items-start + w-full text-center)
+  // 20px Inter Medium "12" ≈ 22dp, "오후" ≈ 38dp 기준
+  const hourW = wp(26);
   const colonW = wp(10);
-  const minuteW = wp(40);
-  const gapW = wp(20);
-  const periodW = wp(48);
+  const minuteW = wp(26);
+  const gapW = wp(30); // figma 483:1353 — wheel row 내 am/pm 앞 gap
+  const periodW = wp(38);
 
   // 12시간제 + 오전/오후 독립 state (initialHour 는 24시간제 → 변환)
   const initial = to12h(initialHour);
   const [hour12, setHour12] = useState(initial.hour12);
   const [isPM, setIsPM] = useState(initial.isPM);
   const [minute, setMinute] = useState(snapMinute(initialMinute));
+  // 검증 실패 시 picker 안에 표시할 toast 메시지 (figma 615:1919)
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (visible) {
@@ -190,37 +229,91 @@ export function TimePickerSheet({
       setHour12(next.hour12);
       setIsPM(next.isPM);
       setMinute(snapMinute(initialMinute));
+      // 새로 열릴 때 이전 toast 잔재 클리어
+      setToastMessage(null);
+      if (toastTimerRef.current) {
+        clearTimeout(toastTimerRef.current);
+        toastTimerRef.current = null;
+      }
     }
   }, [visible, initialHour, initialMinute]);
+
+  // 언마운트 시 timer 정리
+  useEffect(() => {
+    return () => {
+      if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    };
+  }, []);
+
+  const showToast = (msg: string) => {
+    setToastMessage(msg);
+    if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
+    toastTimerRef.current = setTimeout(() => setToastMessage(null), 2500);
+  };
 
   const periodIdx = isPM ? 1 : 0;
   const handlePeriodChange = (idx: number) => {
     setIsPM(idx === 1);
   };
 
-  const handleConfirm = () => {
-    onConfirm(to24h(hour12, isPM), minute);
+  const handleConfirm = async () => {
+    const result = await onConfirm(to24h(hour12, isPM), minute);
+    // parent 가 string 반환 → 검증 실패 → toast 표시 + picker 유지
+    if (typeof result === 'string') {
+      showToast(result);
+    }
+    // void/undefined → 검증 통과, parent 가 picker 닫음 (setVisible(false))
   };
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={onClose}
+      statusBarTranslucent
+    >
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View
-        style={[
-          styles.sheet,
+
+      {/* picker 와 toast 를 같은 bottom 컨테이너에 묶음 — toast 가 자동으로 picker 위로 쌓임 */}
+      <View style={styles.bottomStack} pointerEvents="box-none">
+        {/* Toast — figma 615:1919 (picker 위) */}
+        {toastMessage && (
+          <View style={styles.toast} pointerEvents="none">
+            <Text style={styles.toastText} allowFontScaling={false}>
+              {toastMessage}
+            </Text>
+          </View>
+        )}
+
+        <View
+          style={[
+            styles.sheet,
           {
-            paddingVertical: hp(32),
+            paddingTop: hp(32),
+            // figma 32 + safe-area bottom inset → 갤럭시 gesture bar 위로 버튼 띄움
+            paddingBottom: hp(32) + insets.bottom,
             paddingHorizontal: wp(17),
             gap: hp(34),
           },
         ]}
       >
-        <Text variant="titleLargeMid" style={styles.sheetTitle}>
-          {title}
-        </Text>
+        {/* content group: title + wheel (figma 483:1351 — col, gap 10, items-center, w-312) */}
+        <View style={[styles.contentGroup, { gap: hp(10) }]}>
+          {/* title + subtitle (figma 501:604 — col, gap 5, w-full, items-start) */}
+          <View style={styles.titleWrap}>
+            <Text style={styles.title}>
+              {title}
+            </Text>
+            {!!subtitle && (
+              <Text style={styles.subtitle}>
+                {subtitle}
+              </Text>
+            )}
+          </View>
 
-        {/* picker — 가운데 정렬, 위에 selection pill + colon overlay */}
-        <View style={[styles.wheelWrap, { height: WHEEL_HEIGHT }]}>
+          {/* picker — 가운데 정렬, 위에 selection pill + colon overlay */}
+          <View style={[styles.wheelWrap, { height: WHEEL_HEIGHT }]}>
           {/* 선택 pill (270x36) */}
           <View
             pointerEvents="none"
@@ -231,9 +324,6 @@ export function TimePickerSheet({
           />
 
           <View style={styles.wheelRow}>
-            {/* 좌측 여백 (오른쪽 gap + am/pm 너비만큼)을 둬서 시:분이 중앙에 오도록 맞춤 */}
-            <View style={{ width: gapW + periodW }} pointerEvents="none" />
-
             {/* 시 + ":" + 분 (left group) — 시는 1~12 */}
             <WheelColumn
               items={HOURS}
@@ -243,18 +333,15 @@ export function TimePickerSheet({
               width={hourW}
             />
 
-            {/* gap 5 */}
-            <View style={{ width: wp(5) }} />
-
-            {/* 중앙 행에만 ":" 표시 (inline) */}
+            {/* 중앙 행에만 ":" 표시 (inline) — figma: 20px text-black */}
             <View style={{ width: colonW, height: WHEEL_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
-              <Text variant="displayLarge" color="textPrimary" align="center">
+              <Text
+                allowFontScaling={false}
+                style={{ fontSize: wp(20), fontWeight: '500', color: '#000', letterSpacing: -0.4 }}
+              >
                 :
               </Text>
             </View>
-
-            {/* gap 5 */}
-            <View style={{ width: wp(5) }} />
 
             <WheelColumn
               items={MINUTES}
@@ -264,15 +351,17 @@ export function TimePickerSheet({
               width={minuteW}
             />
 
-            {/* gap 30 → 오전/오후 */}
-            <View style={{ width: gapW }} />
+            {/* gap 30 → 오전/오후 (color mode period: black/#d9d9d9) */}
+            <View style={{ width: wp(10) }} />
             <WheelColumn
               items={PERIODS}
               selectedIndex={periodIdx}
               onChange={handlePeriodChange}
               itemHeight={ITEM_HEIGHT}
               width={periodW}
+              colorMode="period"
             />
+          </View>
           </View>
         </View>
 
@@ -283,6 +372,7 @@ export function TimePickerSheet({
           onPress={handleConfirm}
           style={styles.confirmButton}
         />
+        </View>
       </View>
     </Modal>
   );
@@ -293,22 +383,69 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFillObject,
     backgroundColor: Colors.backdrop,
   },
-  sheet: {
+  // bottom-anchored stack — toast 가 picker 위로 자동 쌓임 (위치 하드코딩 불필요)
+  bottomStack: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    alignItems: 'center',
+  },
+  sheet: {
+    alignSelf: 'stretch', // bottomStack 안에서 가로 100%
     backgroundColor: Colors.white,
     borderTopLeftRadius: Radii.lg,
     borderTopRightRadius: Radii.lg,
     alignItems: 'center',
   },
-  sheetTitle: {
+  // Toast — figma 615:1919 (picker 위)
+  // bg #93a09a (darkGray), w 283, padding 15h/10v, rounded 16
+  // text 14px Medium white, leading 1.5, tracking -0.28
+  toast: {
+    marginBottom: 15, // picker 와의 gap (figma 사양)
+    width: 283,
+    paddingHorizontal: 15,
+    paddingVertical: 10,
+    borderRadius: 16,
+    backgroundColor: Colors.darkGray, // #93a09a
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  toastText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#fff',
+    letterSpacing: -0.28,
+    lineHeight: 21, // 14 * 1.5
+    textAlign: 'center',
+  },
+  // figma 483:1351 — title + wheel을 한 그룹으로 묶기 (col, gap 10, items-center)
+  contentGroup: {
     alignSelf: 'stretch',
+    alignItems: 'center',
+  },
+  // title + subtitle column (gap 5)
+  titleWrap: {
+    alignSelf: 'stretch',
+    gap: 5,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '500',
+    color: '#000',
+    letterSpacing: -0.36,
+  },
+  subtitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    color: '#a0a0a0',
+    letterSpacing: -0.26,
+    lineHeight: 19.5, // 13 * 1.5
   },
   wheelWrap: {
     alignSelf: 'stretch',
     justifyContent: 'center',
+    alignItems: 'center', // wheelRow를 가로 가운데 정렬 (figma 매칭)
   },
   selectionPill: {
     position: 'absolute',
@@ -318,7 +455,7 @@ const styles = StyleSheet.create({
   },
   wheelRow: {
     flexDirection: 'row',
-    justifyContent: 'center',
+    alignSelf: 'center',
   },
 
   cell: {

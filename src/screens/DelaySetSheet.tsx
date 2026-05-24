@@ -49,15 +49,17 @@ export default function DelaySetSheet({ route, navigation }: Props) {
     setShowPicker(true);
   };
 
-  // ⚠ setShowPicker(false)는 validation 통과 후에만 호출 — 범위 초과 시 picker 유지
-  const handleConfirmNewTime = async (hour: number, minute: number) => {
+  // 검증 실패 시 string 반환 → TimePickerSheet 가 toast 표시 + picker 유지 (figma 615:1919)
+  const handleConfirmNewTime = async (
+    hour: number,
+    minute: number,
+  ): Promise<string | void> => {
     // 시각 보정 (오늘/내일 자동)
     const candidate = new Date(min);
     candidate.setHours(hour, minute, 0, 0);
     if (candidate < min) candidate.setDate(candidate.getDate() + 1);
     if (candidate > max) {
-      Alert.alert('알림', '새벽 04:00까지만 미룰 수 있어요.');
-      return; // picker는 그대로 유지
+      return '새벽 4시 전까지만 설정할 수 있어요.';
     }
     setShowPicker(false);
     // applyDelay 재호출 (이미 isDelayed=true 상태에서도 멱등)
@@ -105,7 +107,8 @@ export default function DelaySetSheet({ route, navigation }: Props) {
         visible={showPicker}
         initialHour={delayedTime.hour}
         initialMinute={delayedTime.minute}
-        title="언제로 미룰까요?"
+        title="시작 시간을 선택해 주세요."
+        subtitle="새벽 4시 전까지만 설정할 수 있어요."
         minDate={min}
         maxDate={max}
         onClose={() => setShowPicker(false)}

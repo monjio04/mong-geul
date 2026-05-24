@@ -3,14 +3,22 @@ export type BgmType = 'classic' | 'whitenoise' | 'none';
 
 export interface UserProfile {
   nickname: string;       // 공백 포함 최대 12자
-  worryTime: {            // 걱정 타임 설정 시각
+  worryTime: {            // 걱정 타임 설정 시각 (현재 사이클에 적용)
     hour: number;         // 0~23
     minute: number;       // 0 or 30 등
   };
-  focusMinutes: number;   // 15 | 20 | 25 | 30
+  focusMinutes: number;   // 15 | 20 | 25 | 30 (현재 사이클에 적용)
   bgm: BgmType;           // BGM 타입 (오디오 ON일 때 어떤 소리)
   notificationsEnabled: boolean;  // 알림 토글
   audioEnabled: boolean;          // BGM 재생 토글
+
+  // ─── 다음 사이클부터 적용될 변경 사항 (pending) ───
+  // 사용자가 설정 화면에서 시간을 바꾸면 즉시 active 필드를 갈아치우지 않고
+  // pending 필드에 저장 → 다음 cycle 시작 시 applyPendingProfile() 로 promote.
+  // 이렇게 해서 "변경된 시간은 내일부터 적용" 정책 일관 유지 + 무한 미루기 차단.
+  // (단, locked 상태에서 변경 시 SettingsScreen이 즉시 apply + alarm reschedule 함)
+  pendingWorryTime?: { hour: number; minute: number };
+  pendingFocusMinutes?: number;
 }
 
 // ─── 하루 기록 ─────────────────────────────────────────

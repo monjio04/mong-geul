@@ -10,6 +10,7 @@ import RootNavigator from './src/navigation/RootNavigator';
 import DebugPanel from './src/__dev__/DebugPanel';
 import { initNotifications, NOTIF_ACTION } from './src/notifications/scheduler';
 import { saveDayRecord } from './src/storage/storage';
+import { pickFlowerPosition } from './src/timer/flowerCycle';
 import type { DayRecord, FlowerType } from './src/storage/types';
 import type { RootStackParamList } from './src/navigation/types';
 
@@ -92,7 +93,8 @@ export default function App() {
   useEffect(() => {
     if (!__DEV__) return;
     (async () => {
-      const FLAG = 'dev:aprilSeeded:v3';
+      // v9: 하단 6 + 중앙 2 슬롯 추가 (총 40 slots)
+      const FLAG = 'dev:aprilSeeded:v9';
       const already = await AsyncStorage.getItem(FLAG);
       if (already) return;
       const year = new Date().getFullYear();
@@ -102,39 +104,21 @@ export default function App() {
       for (let i = 0; i < 30; i++) {
         colors.push((((i % 7) + 1) as FlowerType));
       }
-      // Fisher-Yates shuffle
       for (let i = colors.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1));
         [colors[i], colors[j]] = [colors[j], colors[i]];
       }
 
-      // grid: 6 cols × 5 rows (총 30 cells)
-      // x range 0.08~0.92 (cell width ~0.168), y range 0.62~0.84 (cell height ~0.055)
-      const COLS = 6;
-      const ROWS = 5;
-      const X_START = 0.08;
-      const X_END = 0.92;
-      const Y_START = 0.62;
-      const Y_END = 0.84;
-      const cellW = (X_END - X_START) / (COLS - 1);
-      const cellH = (Y_END - Y_START) / (ROWS - 1);
-
       for (let day = 1; day <= 30; day++) {
-        const idx = day - 1;
-        const col = idx % COLS;
-        const row = Math.floor(idx / COLS);
-        const xBase = X_START + col * cellW;
-        const yBase = Y_START + row * cellH;
-        // cell 안 jitter (cell의 30% 정도 범위)
-        const x = xBase + (Math.random() - 0.5) * cellW * 0.6;
-        const y = yBase + (Math.random() - 0.5) * cellH * 0.6;
-
         const dd = String(day).padStart(2, '0');
         const dateStr = `${year}-04-${dd}`;
+        // 실제 production과 동일한 로직 사용 — pickFlowerPosition(date)
+        // → month seed 기반 32 slot shuffle 에서 day별 unique slot
+        const position = pickFlowerPosition(new Date(year, 3, day)); // month: 0-indexed (3=April)
         const record: DayRecord = {
           status: 'flower',
-          flowerType: colors[idx],
-          position: { x, y },
+          flowerType: colors[day - 1],
+          position,
           completedAt: new Date(`${dateStr}T20:00:00`).toISOString(),
           isDelayed: false,
           isAdvanced: false,
@@ -142,7 +126,7 @@ export default function App() {
         await saveDayRecord(dateStr, record);
       }
       await AsyncStorage.setItem(FLAG, '1');
-      console.log(`[DEV] seeded 30 flower records for ${year}-04 (grid+shuffle)`);
+      console.log(`[DEV] seeded 30 flower records for ${year}-04 (PRESET_FLOWER_SLOTS)`);
     })();
   }, []);
 

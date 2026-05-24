@@ -17,6 +17,7 @@ import {
   saveDayRecord,
   resetMemos,
   incrementProgress,
+  applyPendingProfile,
 } from '../storage/storage';
 import type { TimerState, DayRecord } from '../storage/types';
 import {
@@ -24,7 +25,11 @@ import {
   cancelCycleNotifications,
   cancelNotifications,
 } from '../notifications/scheduler';
-import { getAlarmDateString, getNextPrimaryAlarm } from './worryTimeWindow';
+import {
+  getAlarmDateString,
+  getNextPrimaryAlarm,
+  getNextCycleStart,
+} from './worryTimeWindow';
 import type { WorryTime } from './worryTimeWindow';
 import { pickFlowerType, pickFlowerPosition } from './flowerCycle';
 
@@ -84,10 +89,12 @@ export async function completeTimer(
     isDelayed || isAdvanced ? 'sprout' : 'flower';
 
   // 1. 기록 저장 — 꽃이면 flowerType(7개 사이클) 추첨, 새싹이면 type 없음
-  // 위치는 둘 다 풀밭 안 랜덤 (Home 꽃밭에 표시 시 사용)
+  // 위치는 alarmDate(YYYY-MM-DD) 기반 deterministic — month seed로 day마다 다른 slot
   const alarmDate = state.alarmDate ?? getAlarmDateString(getNextPrimaryAlarm(now, worryTime));
   const flowerType = status === 'flower' ? await pickFlowerType() : undefined;
-  const position = pickFlowerPosition();
+  // 'YYYY-MM-DD' 파싱 (로컬 타임존 자정 기준)
+  const [yy, mm, dd] = alarmDate.split('-').map(Number);
+  const position = pickFlowerPosition(new Date(yy, mm - 1, dd));
   const record: DayRecord = {
     status,
     completedAt: now.toISOString(),
@@ -112,12 +119,19 @@ export async function completeTimer(
   // 4. 카운터 +1
   const { triggered: weeklyTriggered } = await incrementProgress();
 
-  // 5. 다음 사이클 알림 예약
+  // 5. pending 설정 적용 (다음 사이클부터 새 값) → 알림 예약
+  //    사용자가 설정 화면에서 변경한 worryTime/focusMinutes가 pending에 저장되어 있다면
+  //    여기서 active로 promote. 다음 cycle 알람은 새 값으로 schedule됨.
+  //    fromTime = 다음 cycle 시작점(다음 4am) → "오늘 worryTime 이 미래여도 무조건 다음 cycle"
+  //    (이번 cycle 방금 완료 → 같은 날 또 worryTime 잡으면 안 됨)
+  const appliedProfile = await applyPendingProfile();
+  const effectiveWorryTime = appliedProfile?.worryTime ?? worryTime;
+  const nextCycleStart = getNextCycleStart(now);
   const { primaryNotifId, secondaryNotifId, lockNotifId } =
-    await scheduleCycle(worryTime);
+    await scheduleCycle(effectiveWorryTime, nextCycleStart);
 
   // 6. 타이머 상태 리셋 (잠금 상태로 설정)
-  const nextPrimary = getNextPrimaryAlarm(now, worryTime);
+  const nextPrimary = getNextPrimaryAlarm(nextCycleStart, effectiveWorryTime);
   const nextAlarmDate = getAlarmDateString(nextPrimary);
 
   await saveTimerState({
@@ -172,11 +186,15 @@ export async function lockCycle(
   // 메모 리셋
   await resetMemos();
 
-  // 다음 사이클 예약
+  // pending 설정 적용 + 다음 cycle 알림 예약 (completeTimer 동일)
+  // fromTime = 다음 cycle 시작점 → "이번 cycle 끝났으니 무조건 다음 cycle 알람"
+  const appliedProfile = await applyPendingProfile();
+  const effectiveWorryTime = appliedProfile?.worryTime ?? worryTime;
+  const nextCycleStart = getNextCycleStart(now);
   const { primaryNotifId, secondaryNotifId, lockNotifId } =
-    await scheduleCycle(worryTime);
+    await scheduleCycle(effectiveWorryTime, nextCycleStart);
 
-  const nextPrimary = getNextPrimaryAlarm(now, worryTime);
+  const nextPrimary = getNextPrimaryAlarm(nextCycleStart, effectiveWorryTime);
   const nextAlarmDate = getAlarmDateString(nextPrimary);
 
   await saveTimerState({
@@ -230,6 +248,14 @@ export async function applyDelay(delayedUntil: Date): Promise<void> {
 
 export async function startAdvanced(): Promise<void> {
   const state = await getTimerState();
+  // 미리 쓰기 시작 → 이번 사이클의 worryTime 알림 모두 취소 (1차/2차/잠금)
+  // (작성 도중에 worryTime 도달 시 불필요한 알림 방지)
+  await cancelCycleNotifications({
+    primaryNotifId: state.primaryNotifId,
+    secondaryNotifId: state.secondaryNotifId,
+    lockNotifId: state.lockNotifId,
+    timerEndNotifId: state.timerEndNotifId,
+  });
   await saveTimerState({
     ...state,
     isAdvanced: true,
@@ -237,5 +263,10 @@ export async function startAdvanced(): Promise<void> {
     // 새 사이클 시작 → 이전 사이클의 lock 해제
     isLocked: false,
     lockedAt: null,
+    // notif ID reset (cancel 됐으니)
+    primaryNotifId: null,
+    secondaryNotifId: null,
+    lockNotifId: null,
+    timerEndNotifId: null,
   });
 }

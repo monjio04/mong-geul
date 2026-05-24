@@ -31,8 +31,21 @@ const FLOWER_IDLE: Record<FlowerType, ReturnType<typeof require>> = {
 };
 const SEED_IDLE = require('../../assets/lottie/flowers/seed_idle.json');
 
-// 꽃 한 송이 사이즈 (화면 너비 비율)
-const FLOWER_RATIO = 0.18; // ~18% of screen width
+// 꽃 한 송이 사이즈 — figma 18dp는 너무 작아 가시성 위해 키움
+// 38dp ≈ 10.5% — Lottie 디테일 보이면서 조밀 영역도 덜 겹침
+const FLOWER_RATIO = 50 / 360; // ≈ 0.106
+
+// type별 상대 스케일 — figma 615:1549 에서 f-green 은 18×12 로 다른 꽃(18×16~18) 보다 작음
+// 1=노란, 2=베이지, 3=분홍, 4=파란, 5=보라, 6=연보라, 7=초록
+const FLOWER_SIZE_SCALE: Record<FlowerType, number> = {
+  1: 1.0,
+  2: 1.0,
+  3: 1.0,
+  4: 1.0,
+  5: 1.0,
+  6: 1.0,
+  7: 0.7, // 초록 — figma 비율(12/18 ≈ 0.67) 참고하여 살짝 더 크게
+};
 
 export function FlowerGarden({ records }: FlowerGardenProps) {
   const { width, height } = useWindowDimensions();
@@ -62,8 +75,13 @@ export function FlowerGarden({ records }: FlowerGardenProps) {
           r.status === 'flower' && r.flowerType
             ? FLOWER_IDLE[r.flowerType]
             : SEED_IDLE;
-        const left = (r.position?.x ?? 0.5) * width - size / 2;
-        const top = (r.position?.y ?? 0.85) * height - size / 2;
+        // type별 상대 스케일 적용 (초록만 작게)
+        const scale = r.status === 'flower' && r.flowerType
+          ? FLOWER_SIZE_SCALE[r.flowerType]
+          : 1.0;
+        const itemSize = size * scale;
+        const left = (r.position?.x ?? 0.5) * width - itemSize / 2;
+        const top = (r.position?.y ?? 0.85) * height - itemSize / 2;
         return (
           <LottieView
             key={date}
@@ -74,8 +92,8 @@ export function FlowerGarden({ records }: FlowerGardenProps) {
               position: 'absolute',
               left,
               top,
-              width: size,
-              height: size,
+              width: itemSize,
+              height: itemSize,
             }}
             resizeMode="contain"
           />

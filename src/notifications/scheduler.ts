@@ -118,10 +118,18 @@ export interface ScheduledIds {
 /**
  * 걱정 타임 1사이클 알림 2개 예약 (1차 + 2차)
  * 사용자 nickname 은 storage.getUserProfile() 에서 조회.
+ *
+ * @param worryTime 알림을 발화할 시각(시/분)
+ * @param fromTime 알림 계산 기준 시점 (기본=now).
+ *                 completeTimer/lockCycle 호출 시 getNextCycleStart(now) 를 넘겨야
+ *                 "오늘 worryTime 이 미래여도 다음 cycle 로" 스케줄됨.
  */
-export async function scheduleCycle(worryTime: WorryTime): Promise<ScheduledIds> {
-  const now = new Date();
-  const primaryAlarm = getNextPrimaryAlarm(now, worryTime);
+export async function scheduleCycle(
+  worryTime: WorryTime,
+  fromTime?: Date,
+): Promise<ScheduledIds> {
+  const baseTime = fromTime ?? new Date();
+  const primaryAlarm = getNextPrimaryAlarm(baseTime, worryTime);
   const secondaryAlarm = getSecondaryAlarmTime(primaryAlarm);
 
   const profile = await getUserProfile();

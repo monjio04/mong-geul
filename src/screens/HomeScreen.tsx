@@ -30,7 +30,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { getUserProfile, getTimerState, getMonthRecords } from '../storage/storage';
 import type { UserProfile, WorkerState, DayRecord } from '../storage/types';
 import { resolveState } from '../timer/stateMachine';
-import { getNextPrimaryAlarm } from '../timer/worryTimeWindow';
+import { getNextPrimaryAlarm, getNextCycleStart } from '../timer/worryTimeWindow';
 import { MainButton } from '../components/MainButton';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { FlowerGarden } from '../components/FlowerGarden';
@@ -268,6 +268,13 @@ function computeCountdown(
     return formatDiff(now.getTime(), target);
   }
   if (state === 'active' || state === 'advanced') return '00:00';
+  // locked/completed = 이번 cycle 끝남 → 다음 cycle 알람까지 카운트다운
+  //   (오늘 worryTime이 미래여도 무시, 무조건 다음 4am 이후)
+  if (state === 'locked' || state === 'completed') {
+    const next = getNextPrimaryAlarm(getNextCycleStart(now), profile.worryTime);
+    return formatDiff(now.getTime(), next.getTime());
+  }
+  // idle = 이번 cycle 알람까지 카운트다운 (오늘 worryTime 기준)
   const next = getNextPrimaryAlarm(now, profile.worryTime);
   return formatDiff(now.getTime(), next.getTime());
 }
