@@ -4,17 +4,19 @@
  * props.records: 표시 월의 DayRecord 컬렉션 (date string → record)
  *
  * 각 record 가 status='flower'/'sprout' + position 을 가지면 그 위치(화면 비율)에
- * idle Lottie 를 absolute 로 배치. status='empty' 면 무시.
+ * idle 자산을 absolute 로 배치. status='empty' 면 무시.
  *
- * 자산:
- *  - flower 1~7 → flower_idle_n.json
- *  - sprout    → seed_idle.json
+ * 자산 (사용자 요청 — flower7 ↔ seed swap):
+ *  - flower 1~6 → flower_idle_n.json (Lottie)
+ *  - flower 7   → seed_idle.json     (Lottie — 기존 seed/싹 모션)
+ *  - sprout     → f-sprout.svg       (정적 SVG)
  */
 
 import React from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
 import type { DayRecord, FlowerType } from '../storage/types';
+import FSproutIcon from '../../assets/icons/f-sprout.svg';
 
 interface FlowerGardenProps {
   records: Record<string, DayRecord>;
@@ -27,16 +29,15 @@ const FLOWER_IDLE: Record<FlowerType, ReturnType<typeof require>> = {
   4: require('../../assets/lottie/flowers/flower_idle_4.json'),
   5: require('../../assets/lottie/flowers/flower_idle_5.json'),
   6: require('../../assets/lottie/flowers/flower_idle_6.json'),
-  7: require('../../assets/lottie/flowers/flower_idle_7.json'),
+  7: require('../../assets/lottie/flowers/seed_idle.json'), // ← 기존 flower7 자리에 seed 사용
 };
-const SEED_IDLE = require('../../assets/lottie/flowers/seed_idle.json');
 
 // 꽃 한 송이 사이즈 — figma 18dp는 너무 작아 가시성 위해 키움
 // 38dp ≈ 10.5% — Lottie 디테일 보이면서 조밀 영역도 덜 겹침
 const FLOWER_RATIO = 50 / 360; // ≈ 0.106
 
-// type별 상대 스케일 — figma 615:1549 에서 f-green 은 18×12 로 다른 꽃(18×16~18) 보다 작음
-// 1=노란, 2=베이지, 3=분홍, 4=파란, 5=보라, 6=연보라, 7=초록
+// type별 상대 스케일
+// 1=노란, 2=베이지, 3=분홍, 4=파란, 5=보라, 6=연보라, 7=seed(싹)
 const FLOWER_SIZE_SCALE: Record<FlowerType, number> = {
   1: 1.0,
   2: 1.0,
@@ -44,8 +45,15 @@ const FLOWER_SIZE_SCALE: Record<FlowerType, number> = {
   4: 1.0,
   5: 1.0,
   6: 1.0,
-  7: 0.7, // 초록 — figma 비율(12/18 ≈ 0.67) 참고하여 살짝 더 크게
+  7: 0.75, // seed(싹) lottie — sprout 와 동일 비율로 살짝 축소
 };
+
+// 새싹(sprout) SVG 사이즈 — viewBox 100×74 → 가로 기준 비율
+const SPROUT_W = 100;
+const SPROUT_H = 74;
+
+// 새싹 상대 스케일 — figma 615:1549 sprout(18×12.55)이 꽃(18×16~18)보다 작은 비율 반영
+const SPROUT_SIZE_SCALE = 0.75;
 
 export function FlowerGarden({ records }: FlowerGardenProps) {
   const { width, height } = useWindowDimensions();
@@ -71,17 +79,39 @@ export function FlowerGarden({ records }: FlowerGardenProps) {
   return (
     <View style={styles.root} pointerEvents="none">
       {items.map(([date, r]) => {
-        const src =
-          r.status === 'flower' && r.flowerType
-            ? FLOWER_IDLE[r.flowerType]
-            : SEED_IDLE;
-        // type별 상대 스케일 적용 (초록만 작게)
-        const scale = r.status === 'flower' && r.flowerType
-          ? FLOWER_SIZE_SCALE[r.flowerType]
-          : 1.0;
+        const isSprout = r.status === 'sprout';
+        // 크기: sprout 은 SPROUT_SIZE_SCALE, flower 는 type 별 scale 적용
+        const scale = isSprout
+          ? SPROUT_SIZE_SCALE
+          : r.status === 'flower' && r.flowerType
+            ? FLOWER_SIZE_SCALE[r.flowerType]
+            : 1.0;
         const itemSize = size * scale;
         const left = (r.position?.x ?? 0.5) * width - itemSize / 2;
-        const top = (r.position?.y ?? 0.85) * height - itemSize / 2;
+        // sprout 는 SVG height 비율 적용 (100×74 → height 74%)
+        const itemHeight = isSprout ? itemSize * (SPROUT_H / SPROUT_W) : itemSize;
+        const top = (r.position?.y ?? 0.85) * height - itemHeight / 2;
+
+        if (isSprout) {
+          // 새싹 — figma 사용자 제공 f-sprout.svg (정적)
+          return (
+            <View
+              key={date}
+              style={{
+                position: 'absolute',
+                left,
+                top,
+                width: itemSize,
+                height: itemHeight,
+              }}
+            >
+              <FSproutIcon width={itemSize} height={itemHeight} />
+            </View>
+          );
+        }
+
+        // flower 1~7 — Lottie idle
+        const src = FLOWER_IDLE[r.flowerType ?? 1];
         return (
           <LottieView
             key={date}

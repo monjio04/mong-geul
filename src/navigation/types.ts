@@ -18,7 +18,8 @@ export type OnboardingStackParamList = {
 // ─── 메인 스택 ───────────────────────────────────────────
 export type RootStackParamList = {
   Onboarding: undefined;     // 온보딩 스택 전체
-  Home: undefined;
+  // showWorryEnded: 걱정타임 종료 후 알림 진입 시 → 홈 위에 종료 안내 모달 (figma 613:594)
+  Home: { showWorryEnded?: boolean } | undefined;
   WorryTimeEntry: undefined;     // 5초 카운트다운 진입 화면 → WorryTime
   WorryTime: undefined;
   Memo: undefined;

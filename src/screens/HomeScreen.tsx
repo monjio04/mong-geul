@@ -19,7 +19,7 @@
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, Image,
+  View, StyleSheet, TouchableOpacity, Image, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
@@ -29,13 +29,13 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { getUserProfile, getTimerState, getMonthRecords } from '../storage/storage';
 import type { UserProfile, WorkerState, DayRecord } from '../storage/types';
-import { resolveState } from '../timer/stateMachine';
+import { resolveState, hasTodayCycleEnded } from '../timer/stateMachine';
 import { getNextPrimaryAlarm, getNextCycleStart } from '../timer/worryTimeWindow';
 import { MainButton } from '../components/MainButton';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { FlowerGarden } from '../components/FlowerGarden';
 import { navigationRef } from '../../App';
-import { Text } from '../components/ui';
+import { Button, Card, Text } from '../components/ui';
 import { Colors } from '../theme';
 const BG_IMAGE = require('../../assets/images/background.png');
 const IDLE_FLOWER = require('../../assets/lottie/idle_flower.json');
@@ -43,12 +43,23 @@ const MAIN_CHAR_IDLE = require('../../assets/lottie/character_idle.json');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
-export default function HomeScreen({ navigation }: Props) {
+export default function HomeScreen({ navigation, route }: Props) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [appState, setAppState] = useState<WorkerState>('idle');
   const [countdown, setCountdown] = useState<string>('00:00');
   const [now, setNow] = useState<Date>(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // 걱정타임 종료 안내 모달 (figma 613:594)
+  //   알림 탭 시 App.tsx 가 route.params.showWorryEnded=true 로 navigate
+  //   → 마운트 시 한 번 띄우고 param 소비 (다시 마운트 시 안 띄움)
+  const [worryEndedVisible, setWorryEndedVisible] = useState(false);
+  useEffect(() => {
+    if (route.params?.showWorryEnded) {
+      setWorryEndedVisible(true);
+      navigation.setParams({ showWorryEnded: undefined });
+    }
+  }, [route.params?.showWorryEnded, navigation]);
 
   // 현재 표시 월 (chevron으로 이동) — 기본: 오늘 기준 연/월
   const today = new Date();
@@ -236,7 +247,15 @@ export default function HomeScreen({ navigation }: Props) {
           onPressLeft={
             isActive
               ? () => navigation.navigate('Copywrite')
-              : () => navigation.navigate('NotWorryTime')
+              : () => {
+                  // 비활성 — 오늘 사이클 종료(locked/completed/missed)면 WorryTimeEnded 모달
+                  // 아직 시작 전(idle, worryTime 이전)이면 기존 NotWorryTime 시트
+                  if (profile && hasTodayCycleEnded(appState, now, profile.worryTime)) {
+                    setWorryEndedVisible(true);
+                  } else {
+                    navigation.navigate('NotWorryTime');
+                  }
+                }
           }
           onPressRight={
             isActive
@@ -245,6 +264,56 @@ export default function HomeScreen({ navigation }: Props) {
           }
         />
       </View>
+
+      {/* 걱정타임 종료 안내 모달 — figma 613:594 (Card+Button+Text 재사용) */}
+      <Modal
+        visible={worryEndedVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setWorryEndedVisible(false)}
+      >
+        <Pressable
+          style={styles.worryEndedBackdrop}
+          onPress={() => setWorryEndedVisible(false)}
+        />
+        <View style={styles.worryEndedCenter} pointerEvents="box-none">
+          <Card variant="warning" style={styles.worryEndedCard}>
+            {/* title + body (figma: col gap 11, items-start) */}
+            <View style={styles.worryEndedTitleGroup}>
+              <Text variant="titleLarge" style={styles.worryEndedTitleLine} numberOfLines={1}>
+                오늘의 걱정타임이 끝났어요.
+              </Text>
+              {/* 한글 폰트 width 때문에 \n 강제 안 하고 자연 wrap */}
+              <Text variant="xsMedium" color="darkGray" style={styles.worryEndedBody}>
+                걱정타임은 하루에 한 번만 열려요. 새로 떠오른 걱정은 잠깐 맡겨둘 수 있어요.
+              </Text>
+            </View>
+
+            {/* 버튼 행 (figma: row gap 8, h 43) */}
+            <View style={styles.worryEndedButtonRow}>
+              <Button
+                variant="secondary"
+                size="md"
+                label="내일 다시 올게요"
+                onPress={() => setWorryEndedVisible(false)}
+                style={styles.worryEndedButton}
+                textStyle={styles.worryEndedButtonTextSecondary}
+              />
+              <Button
+                variant="primary"
+                size="md"
+                label="걱정 맡겨두기"
+                onPress={() => {
+                  setWorryEndedVisible(false);
+                  navigation.navigate('Memo');
+                }}
+                style={styles.worryEndedButton}
+                textStyle={styles.worryEndedButtonTextPrimary}
+              />
+            </View>
+          </Card>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -373,7 +442,7 @@ const styles = StyleSheet.create({
   subCharAnchor: {
     position: 'absolute',
     left: '38.2%',   // 25%가 되어 가운데 정렬되도록 보정 (152/360 = 42.2% 였던 중심 유지)
-    top: '37%',    // 살짝 위로 올려 머리 위에 자연스럽게
+    top: '38.5%',    // 살짝 위로 올려 머리 위에 자연스럽게
     width: '25%',
     aspectRatio: 57 / 59,
   },
@@ -388,5 +457,62 @@ const styles = StyleSheet.create({
     bottom: 32,
     left: 0, right: 0,
     alignItems: 'center',
+  },
+
+  // ── 걱정타임 종료 안내 모달 (figma 613:594) ──
+  worryEndedBackdrop: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: Colors.backdrop,
+  },
+  worryEndedCenter: {
+    ...StyleSheet.absoluteFillObject,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+  },
+  worryEndedCard: {
+    // warning Card 의 rounded 20/padding 24V/20H 를 figma 사양으로 override
+    borderRadius: 12,
+    paddingTop: 24,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    alignItems: 'flex-start',
+    alignSelf: 'stretch',
+    maxWidth: 360,
+  },
+  worryEndedTitleGroup: {
+    alignSelf: 'stretch',
+    alignItems: 'flex-start',
+    gap: 11,
+  },
+  worryEndedTitleLine: {
+    lineHeight: 27, // 18 * 1.5
+    alignSelf: 'stretch',
+  },
+  worryEndedBody: {
+    lineHeight: 18, // 12 * 1.5
+  },
+  worryEndedButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 20,
+    alignSelf: 'stretch',
+    justifyContent: 'center',
+  },
+  worryEndedButton: {
+    width: 132,
+    height: 43,
+    borderRadius: 8,
+  },
+  worryEndedButtonTextPrimary: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.26,
+  },
+  worryEndedButtonTextSecondary: {
+    fontSize: 13,
+    fontWeight: '600',
+    letterSpacing: -0.26,
+    color: Colors.darkGray,
   },
 });

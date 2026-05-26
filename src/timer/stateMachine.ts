@@ -21,6 +21,31 @@ import {
   isBeforeWorryTime,
 } from './worryTimeWindow';
 
+/**
+ * 오늘 사이클이 끝났는지 (의미적 종료)
+ *
+ *  - locked / completed: 명시적 잠금/완료
+ *  - idle 인데 오늘 worryTime + 90분(lockTime) 이미 지남:
+ *      자동 lockCycle 알림이 없어서 isLocked 가 안 켜진 케이스 (= 사용자가 그냥 놓침)
+ *
+ * 사용처: 알림 핸들러 (stale action 차단), HomeScreen 좌측 박스 탭 분기 등.
+ */
+export function hasTodayCycleEnded(
+  state: WorkerState,
+  now: Date,
+  worryTime: WorryTime,
+): boolean {
+  if (state === 'locked' || state === 'completed') return true;
+
+  if (state === 'idle') {
+    const todayPrimary = new Date(now);
+    todayPrimary.setHours(worryTime.hour, worryTime.minute, 0, 0);
+    const todayLock = getLockTime(todayPrimary);
+    if (now > todayLock) return true;
+  }
+  return false;
+}
+
 // ─── 상태 판단 ────────────────────────────────────────────
 
 /**

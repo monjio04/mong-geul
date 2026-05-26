@@ -206,13 +206,16 @@ export function TimePickerSheet({
   const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS;
   const PAD_HEIGHT = ITEM_HEIGHT * PAD_ROWS;
 
-  // figma 483:1355/1364 — 컬럼은 글자 크기만큼만 좁게 (items-start + w-full text-center)
+  // figma 483:1355/1364 — 컬럼은 글자 크기만큼만 좁게 (items-start, p-px)
   // 20px Inter Medium "12" ≈ 22dp, "오후" ≈ 38dp 기준
-  const hourW = wp(26);
-  const colonW = wp(10);
-  const minuteW = wp(26);
-  const gapW = wp(30); // figma 483:1353 — wheel row 내 am/pm 앞 gap
+  // 컬럼 너비는 글자 폭에 맞추고, 사이 간격은 figma gap 사양으로 별도 처리
+  const hourW = wp(22);
+  const minuteW = wp(22);
   const periodW = wp(38);
+  // figma 483:1354 — 시 / : / 분 inner row gap
+  const innerGap = wp(5);
+  // figma 483:1353 — [시:분] group ↔ 오전/오후 outer gap
+  const outerGap = wp(30);
 
   // 12시간제 + 오전/오후 독립 state (initialHour 는 24시간제 → 변환)
   const initial = to12h(initialHour);
@@ -323,18 +326,20 @@ export function TimePickerSheet({
             ]}
           />
 
+          {/* figma 483:1353 — flat row, marginLeft 로 명시적 spacing 적용 (gap 호환성 회피) */}
           <View style={styles.wheelRow}>
-            {/* 시 + ":" + 분 (left group) — 시는 1~12 */}
-            <WheelColumn
-              items={HOURS}
-              selectedIndex={HOURS.indexOf(hour12)}
-              onChange={(i) => setHour12(HOURS[i])}
-              itemHeight={ITEM_HEIGHT}
-              width={hourW}
-            />
+            <View style={{ width: hourW }}>
+              <WheelColumn
+                items={HOURS}
+                selectedIndex={HOURS.indexOf(hour12)}
+                onChange={(i) => setHour12(HOURS[i])}
+                itemHeight={ITEM_HEIGHT}
+                width={hourW}
+              />
+            </View>
 
-            {/* 중앙 행에만 ":" 표시 (inline) — figma: 20px text-black */}
-            <View style={{ width: colonW, height: WHEEL_HEIGHT, justifyContent: 'center', alignItems: 'center' }}>
+            {/* 중앙 행에만 ":" 표시 — figma 483:1363: 20px text-black */}
+            <View style={{ height: WHEEL_HEIGHT, justifyContent: 'center', alignItems: 'center', marginLeft: innerGap }}>
               <Text
                 allowFontScaling={false}
                 style={{ fontSize: wp(20), fontWeight: '500', color: '#000', letterSpacing: -0.4 }}
@@ -343,24 +348,27 @@ export function TimePickerSheet({
               </Text>
             </View>
 
-            <WheelColumn
-              items={MINUTES}
-              selectedIndex={MINUTES.indexOf(minute)}
-              onChange={(i) => setMinute(MINUTES[i])}
-              itemHeight={ITEM_HEIGHT}
-              width={minuteW}
-            />
+            <View style={{ width: minuteW, marginLeft: innerGap }}>
+              <WheelColumn
+                items={MINUTES}
+                selectedIndex={MINUTES.indexOf(minute)}
+                onChange={(i) => setMinute(MINUTES[i])}
+                itemHeight={ITEM_HEIGHT}
+                width={minuteW}
+              />
+            </View>
 
-            {/* gap 30 → 오전/오후 (color mode period: black/#d9d9d9) */}
-            <View style={{ width: wp(10) }} />
-            <WheelColumn
-              items={PERIODS}
-              selectedIndex={periodIdx}
-              onChange={handlePeriodChange}
-              itemHeight={ITEM_HEIGHT}
-              width={periodW}
-              colorMode="period"
-            />
+            {/* figma 483:1372 — 오전/오후 (color mode period: black/#d9d9d9) */}
+            <View style={{ width: periodW, marginLeft: outerGap }}>
+              <WheelColumn
+                items={PERIODS}
+                selectedIndex={periodIdx}
+                onChange={handlePeriodChange}
+                itemHeight={ITEM_HEIGHT}
+                width={periodW}
+                colorMode="period"
+              />
+            </View>
           </View>
           </View>
         </View>
@@ -453,9 +461,11 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.lightGray200,
     borderRadius: 28,
   },
+  // figma 483:1353 — wheel row: 시 | : | 분 | (gap 30) | 오전/오후
   wheelRow: {
     flexDirection: 'row',
     alignSelf: 'center',
+    alignItems: 'center',
   },
 
   cell: {

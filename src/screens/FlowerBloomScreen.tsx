@@ -1,32 +1,36 @@
 /**
- * FlowerBloomScreen — 피그마 "꽃 피는 화면" (node 533:620)
+ * FlowerBloomScreen — 피그마 "꽃 피는 화면" (533:620) / "새싹 피는 화면" (615:1922)
  *
  * 진입: Reward 5초 → Home reset 후 navigation.navigate('FlowerBloom') (transparentModal)
  *
- * 피그마 사양 1:1 (360×800 기준):
- *  - backdrop: rgba(0,0,0,0.7) 전체화면
- *  - 콘텐츠 column (top=182, w=262, center):
- *      └ 중간멘트 (gap 17):
- *         · 제목 24/semibold: [#f1f2ac]"오늘의 꽃"[/] + [white]"이 피었어요"[/]
- *         · 서브 15/medium #d7e2dd (lightGray400, line-height 1.5):
- *           "걱정을 정리한 시간이 작은 꽃으로 남았어요"
- *           "다이어리에 같은 꽃을 남겨 마무리해요"
- *      └ gap 60
- *      └ 원 185×185 bg #cbe691 (연두) rounded 999
- *         └ 안에 꽃 lottie (모션 한 사이클 후 정지)
+ * 두 가지 변형 (status):
+ *  - flower : Lottie 모션 (FLOWER_SHOW[type]) + #cbe691 연두 원
+ *      제목 "오늘의 꽃이 피었어요" (오늘의 꽃 = #f1f2ac)
+ *      서브 "걱정을 정리한 시간이 작은 꽃으로 남았어요\n다이어리에 같은 꽃을 남겨 마무리해요"
+ *  - sprout : 정적 SVG (f-sprout.svg) + #f4f5c7 연노랑 원
+ *      제목 "오늘의 새싹이 피었어요" (오늘의 새싹 = #8ebf46)
+ *      서브 "걱정을 정리한 시간이 작은 새싹으로 남았어요\n다이어리에 같은 새싹을 남겨 마무리해요"
  *
- * Lottie 모션:
- *  - 자산 데이터의 scale 변경이 ip=90 frame부터 시작 → ref.play(90, 108) 명시
- *  - autoPlay false, loop false. 모션 끝나면 onAnimationFinish → 탭 활성 → 탭 → goBack
+ * 공통:
+ *  - backdrop rgba(0,0,0,0.7)
+ *  - column gap 60 (멘트 ↔ 원)
+ *  - 중간멘트 (MiddleMessage 재사용) — gap 17, max-width 270
+ *  - 원 185×185 rounded 999
+ *
+ * 탭 동작:
+ *  - flower: lottie onAnimationFinish → tappable → tap → goBack
+ *  - sprout: 마운트 후 800ms → tappable → tap → goBack (정적 SVG, animation 없음)
  */
 
 import React, { useEffect, useRef, useState } from 'react';
-import { View, StyleSheet, Pressable, Text as RNText } from 'react-native';
+import { View, StyleSheet, Pressable } from 'react-native';
 import LottieView from 'lottie-react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { useResponsive } from '../theme';
 import type { FlowerType } from '../storage/types';
+import { MiddleMessage } from '../components/MiddleMessage';
+import FSproutIcon from '../../assets/icons/f-sprout.svg';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FlowerBloom'>;
 
@@ -37,9 +41,8 @@ const FLOWER_SHOW: Record<FlowerType, ReturnType<typeof require>> = {
   4: require('../../assets/lottie/flowers/flower_show_4.json'),
   5: require('../../assets/lottie/flowers/flower_show_5.json'),
   6: require('../../assets/lottie/flowers/flower_show_6.json'),
-  7: require('../../assets/lottie/flowers/flower_show_7.json'),
+  7: require('../../assets/lottie/flowers/seed_show.json'), // ← 기존 flower7 자리에 seed 사용
 };
-const SEED_SHOW = require('../../assets/lottie/flowers/seed_show.json');
 
 const ANIM_START = 90;
 const ANIM_END = 108;
@@ -47,16 +50,21 @@ const ANIM_END = 108;
 export default function FlowerBloomScreen({ route, navigation }: Props) {
   const { wp, hp } = useResponsive();
   const { status, flowerType } = route.params;
+  const isSprout = status === 'sprout';
 
   const lottieRef = useRef<LottieView>(null);
   const [tappable, setTappable] = useState(false);
 
-  const source =
-    status === 'flower' && flowerType ? FLOWER_SHOW[flowerType] : SEED_SHOW;
-
   useEffect(() => {
-    lottieRef.current?.play(ANIM_START, ANIM_END);
-  }, []);
+    if (isSprout) {
+      // 정적 SVG — 짧은 딜레이 후 탭 활성화
+      const t = setTimeout(() => setTappable(true), 800);
+      return () => clearTimeout(t);
+    } else {
+      // Lottie 모션 — 끝나면 onAnimationFinish 가 tappable 켬
+      lottieRef.current?.play(ANIM_START, ANIM_END);
+    }
+  }, [isSprout]);
 
   const handlePress = () => {
     if (!tappable) return;
@@ -70,15 +78,35 @@ export default function FlowerBloomScreen({ route, navigation }: Props) {
   // 피그마 좌표 → 반응형
   const contentTop = hp(182);
   const contentWidth = wp(262);
-  const messageGap = hp(17);
   const messageToCircleGap = hp(60);
   const circleSize = wp(185);
-  const lottieW = wp(100); // 피그마 꽃 100×86
-  const lottieH = hp(86);
+
+  // 멘트 색/텍스트 — status 별 분기
+  const messageProps = isSprout
+    ? {
+        titleAccent: '오늘의 새싹',
+        titleAccentColor: '#8ebf46',
+        title: '이 피었어요',
+        titleColor: '#ffffff',
+        subtitle:
+          '걱정을 정리한 시간이 작은 새싹으로 남았어요\n다이어리에 같은 새싹을 남겨 마무리해요',
+        subtitleColor: '#d7e2dd', // lightGray400
+      }
+    : {
+        titleAccent: '오늘의 꽃',
+        titleAccentColor: '#f1f2ac',
+        title: '이 피었어요',
+        titleColor: '#ffffff',
+        subtitle:
+          '걱정을 정리한 시간이 작은 꽃으로 남았어요\n다이어리에 같은 꽃을 남겨 마무리해요',
+        subtitleColor: '#d7e2dd',
+      };
+
+  // 원 배경색 — status 별 분기
+  const circleBg = isSprout ? '#f4f5c7' : '#cbe691';
 
   return (
     <Pressable style={styles.root} onPress={handlePress}>
-      {/* 콘텐츠 column — 멘트 + 원 */}
       <View
         style={[
           styles.content,
@@ -86,41 +114,36 @@ export default function FlowerBloomScreen({ route, navigation }: Props) {
         ]}
         pointerEvents="none"
       >
-        {/* 중간멘트 (column gap 17) */}
-        <View style={[styles.messageWrap, { gap: messageGap }]}>
-          {/* 제목 — "오늘의 꽃" 옅은 노란(#f1f2ac) + "이 피었어요" 흰색 */}
-          <RNText style={styles.title} allowFontScaling={false}>
-            <RNText style={styles.titleAccent}>오늘의 꽃</RNText>
-            <RNText style={styles.titleWhite}>이 피었어요</RNText>
-          </RNText>
+        {/* 중간멘트 — figma 615:1923 / 533:620 (기존 컴포넌트 재사용) */}
+        <MiddleMessage {...messageProps} />
 
-          {/* 서브 — #d7e2dd, 15/medium, line-height 1.5, 두 줄 */}
-          <View>
-            <RNText style={styles.subtitle} allowFontScaling={false}>
-              걱정을 정리한 시간이 작은 꽃으로 남았어요
-            </RNText>
-            <RNText style={styles.subtitle} allowFontScaling={false}>
-              다이어리에 같은 꽃을 남겨 마무리해요
-            </RNText>
-          </View>
-        </View>
-
-        {/* 원 — bg #cbe691, 185×185 + 안에 꽃 lottie */}
+        {/* 원 — bg 변경 (flower=#cbe691 / sprout=#f4f5c7) */}
         <View
           style={[
             styles.circle,
-            { width: circleSize, height: circleSize, borderRadius: circleSize / 2 },
+            {
+              width: circleSize,
+              height: circleSize,
+              borderRadius: circleSize / 2,
+              backgroundColor: circleBg,
+            },
           ]}
         >
-          <LottieView
-            ref={lottieRef}
-            source={source}
-            autoPlay={false}
-            loop={false}
-            onAnimationFinish={handleAnimationFinish}
-            style={{ width: lottieW, height: lottieH }}
-            resizeMode="contain"
-          />
+          {isSprout ? (
+            // 새싹 — figma 649:765 (100×69.7 SVG)
+            <FSproutIcon width={wp(100)} height={wp(100) * (69.7 / 100)} />
+          ) : (
+            // 꽃 — Lottie 모션
+            <LottieView
+              ref={lottieRef}
+              source={FLOWER_SHOW[(flowerType ?? 1) as FlowerType]}
+              autoPlay={false}
+              loop={false}
+              onAnimationFinish={handleAnimationFinish}
+              style={{ width: wp(100), height: hp(86) }}
+              resizeMode="contain"
+            />
+          )}
         </View>
       </View>
     </Pressable>
@@ -137,32 +160,7 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
     alignItems: 'center',
   },
-  messageWrap: {
-    alignItems: 'center',
-    width: '100%',
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '600',
-    letterSpacing: -0.48,
-    textAlign: 'center',
-  },
-  titleAccent: {
-    color: '#f1f2ac',
-  },
-  titleWhite: {
-    color: '#ffffff',
-  },
-  subtitle: {
-    fontSize: 15,
-    fontWeight: '500',
-    color: '#d7e2dd', // lightGray400
-    letterSpacing: -0.3,
-    lineHeight: 22.5, // 15 * 1.5
-    textAlign: 'center',
-  },
   circle: {
-    backgroundColor: '#cbe691', // 피그마 연두
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
