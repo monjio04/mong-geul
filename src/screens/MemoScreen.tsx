@@ -25,7 +25,7 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { Button, Text } from '../components/ui';
+import { BottomButton, Text } from '../components/ui';
 import { MemoMemo } from '../components/MemoMemo';
 import { Colors, useResponsive } from '../theme';
 import { addMemo } from '../storage/storage';
@@ -107,17 +107,12 @@ export default function MemoScreen({ navigation }: Props) {
         <MemoMemo value={text} onChangeText={setText} autoFocus />
       </Animated.View>
 
-      {/* 작성 완료 버튼 — 피그마 y=702, w=325 (키보드와 무관, 그대로) */}
-      <View style={[styles.bottomWrap, { bottom: hp(42) }]}>
-        <Button
-          variant="primary"
-          size="lg"
-          label="작성 완료"
-          onPress={handleSubmit}
-          disabled={!canSubmit}
-          style={{ width: wp(325) }}
-        />
-      </View>
+      {/* 작성 완료 버튼 — figma 677:768 bottom-button (네비바 위로 띄움) */}
+      <BottomButton
+        label="작성 완료"
+        onPress={handleSubmit}
+        disabled={!canSubmit}
+      />
     </SafeAreaView>
   );
 }
@@ -139,11 +134,5 @@ const styles = StyleSheet.create({
   },
   memoWrap: {
     position: 'absolute',
-  },
-  bottomWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
   },
 });

@@ -15,9 +15,9 @@
  * 반응형: wp (가로 비율) + hp (세로 비율), MAX_SCALE 1.2 캡
  */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, StyleSheet, StatusBar, ScrollView, Alert,
+  View, StyleSheet, StatusBar, ScrollView, Alert, Vibration,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -37,6 +37,7 @@ import { SpeechBubble } from '../components/SpeechBubble';
 import { AudioToggleIcon } from '../components/AudioToggleIcon';
 import { WorryTimer } from '../components/WorryTimer';
 import { Colors, Radii, useResponsive } from '../theme';
+import { playBgm, stopBgm, resetBgmSession } from '../audio/bgm';
 import MainCharSvg from '../../assets/images/main_char.svg';
 import worryHintsData from '../../assets/worry_hints.json';
 
@@ -128,7 +129,10 @@ export default function WorryTimeScreen({ navigation }: Props) {
     return unsubscribe;
   }, [navigation]);
 
-  // 1초마다 elapsedSec 갱신
+  // 타이머 종료 시 1회 진동 트리거를 위한 플래그
+  const vibratedRef = useRef(false);
+
+  // 1초마다 elapsedSec 갱신 + 타이머 종료 시 진동 (알림음 대신)
   useEffect(() => {
     if (!startedAt) return;
     const tick = () => {
@@ -139,6 +143,43 @@ export default function WorryTimeScreen({ navigation }: Props) {
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
   }, [startedAt]);
+
+  // focusMinutes 경과 시 1회 진동 + BGM 세션 종료 — 알림음 없이 부드러운 종료 알림
+  useEffect(() => {
+    if (!profile) return;
+    const totalSec = profile.focusMinutes * 60;
+    if (elapsedSec >= totalSec && !vibratedRef.current) {
+      vibratedRef.current = true;
+      // 짧은 패턴 진동 (250ms x 2, gap 200ms) — 알림음 대체용 부드러운 진동
+      Vibration.vibrate([0, 250, 200, 250]);
+      // 타이머 종료 → BGM 세션 종료 (정지 + 트랙 선택 해제 → 다음 세션 새 랜덤)
+      void resetBgmSession();
+    }
+  }, [elapsedSec, profile]);
+
+  // BGM 재생/정지 토글
+  //   - 화면 진입 + audioEnabled = true → 세션 트랙 재생 (첫 진입 시 랜덤 선택)
+  //   - 토글 OFF → stopBgm() (트랙 선택은 유지 → 같은 트랙 재개 가능)
+  //   - 토글 ON 다시 → 동일 트랙 처음부터 재생
+  useEffect(() => {
+    if (!profile?.audioEnabled) {
+      void stopBgm();
+      return;
+    }
+    // 타이머 이미 종료된 상태로 진입했다면 재생 X
+    const totalSec = profile.focusMinutes * 60;
+    if (elapsedSec >= totalSec) return;
+
+    void playBgm();
+    // 이 effect 의 cleanup 은 toggle off 케이스에서만 의미 — unmount cleanup 은 아래 별도 effect 에서 처리
+  }, [profile?.audioEnabled, profile?.focusMinutes]); // elapsedSec 변경마다 재실행 방지
+
+  // 화면 unmount 시 BGM 세션 완전 종료 (트랙 선택도 해제 → 다음 걱정타임 새 랜덤)
+  useEffect(() => {
+    return () => {
+      void resetBgmSession();
+    };
+  }, []);
 
   // ─── 핸들러 ─────────────────────────────────────────────
 
@@ -187,12 +228,15 @@ export default function WorryTimeScreen({ navigation }: Props) {
     }
   };
 
-  // ─── 좌표 보정 (hp 적용) ─────────────────────────────────
-  // 피그마 y에서 status bar baseline (24)을 빼고 hp 비율 적용 후 inset 보정
-  const adjustTop = (figmaY: number) => hp(figmaY - FIGMA_STATUSBAR) + insets.top;
+  // ─── 좌표 보정 ──────────────────────────────────────────
+  // 피그마 y 값을 그대로 사용 (status bar baseline 24 빼고 insets.top 보정).
+  // hp 스케일을 빼서 세로로 늘어나는 '찌부' 현상 방지 — figma 절대 위치 유지.
+  const adjustTop = (figmaY: number) => (figmaY - FIGMA_STATUSBAR) + insets.top;
 
   const totalSec = (profile?.focusMinutes ?? 20) * 60;
   const isCompleteAvailable = elapsedSec >= COMPLETE_THRESHOLD_SEC;
+  // 타이머 만료 — figma 679:900 "걱정타임-시간 끝난 후"
+  const isTimerEnded = elapsedSec >= totalSec;
 
   // ─── styles 동적 생성 (반응형) ───────────────────────────
   const styles = useMemo(() => StyleSheet.create({
@@ -218,11 +262,12 @@ export default function WorryTimeScreen({ navigation }: Props) {
       left: wp(75),
     },
 
+    // figma 116:385/679:907 — main_char x=241, 114×120 (세로 hp 스케일 빼서 자연 비율)
     mainChar: {
       position: 'absolute',
       left: wp(241),
       width: wp(114),
-      height: hp(120),
+      height: wp(114) * (120 / 114), // 가로 비율 따라 높이 자동
     },
 
     timerWrap: {
@@ -230,12 +275,12 @@ export default function WorryTimeScreen({ navigation }: Props) {
       left: wp(18),
     },
 
-    // 메모 영역 (피그마 y=358, h=442) — 흰 박스 + top rounded + 위 그림자
+    // 메모 영역 (피그마 y=358부터 화면 끝까지) — top 고정 + bottom 0 으로 남은 공간 flex
     memoArea: {
       position: 'absolute',
       left: 0,
       right: 0,
-      height: hp(442),
+      bottom: 0, // 화면 끝까지
       backgroundColor: Colors.white,
       borderTopLeftRadius: Radii.md,
       borderTopRightRadius: Radii.md,
@@ -251,10 +296,11 @@ export default function WorryTimeScreen({ navigation }: Props) {
       paddingTop: hp(32),
       marginBottom: hp(16),
     },
+    // memoArea 안에서 남은 공간 flex 채움 (memoArea bottom 까지)
     memoList: {
       marginLeft: wp(22),
       width: wp(315),
-      height: hp(352),
+      flex: 1,
     },
     memoListInner: {
       gap: hp(8),
@@ -324,14 +370,26 @@ export default function WorryTimeScreen({ navigation }: Props) {
         />
       </View>
 
-      {/* SpeechBubble (x=75, y=137) */}
-      <View style={[styles.speechWrap, { top: adjustTop(137) }]}>
-        <SpeechBubble text={hint} />
+      {/* SpeechBubble
+         - 진행 중 (figma 116:385): x=75, y=137, 랜덤 phrase
+         - 종료 후 (figma 679:900): x=75, y=126, "오늘의 걱정타임 끝!" 멘트 */}
+      <View style={[styles.speechWrap, { top: adjustTop(isTimerEnded ? 126 : 137) }]}>
+        {isTimerEnded ? (
+          <SpeechBubble>
+            <Text variant="sm" align="center" style={{ maxWidth: 170, width: 170 }}>
+              {'오늘의 걱정타임 끝!\n아래 \''}
+              <Text variant="sm" color="mainGreen">작성 완료</Text>
+              {'\' 버튼을 눌러\n마무리해요 ☺️'}
+            </Text>
+          </SpeechBubble>
+        ) : (
+          <SpeechBubble text={hint} />
+        )}
       </View>
 
-      {/* main_char 큰 꽃 SVG (x=241, y=204, 114×120) */}
+      {/* main_char 큰 꽃 SVG (x=241, y=204, 114×120) — 가로 비율 기준 */}
       <View style={[styles.mainChar, { top: adjustTop(204) }]}>
-        <MainCharSvg width={wp(114)} height={hp(120)} />
+        <MainCharSvg width={wp(114)} height={wp(114) * (120 / 114)} />
       </View>
 
       {/* WorryTimer (x=18, y=304, 325×37) */}
@@ -374,13 +432,21 @@ export default function WorryTimeScreen({ navigation }: Props) {
         />
       </View>
 
-      {/* 10분 후만 — 흰 박스 + "여기까지만 작성할게요" */}
-      {isCompleteAvailable && (
+      {/* 하단 완료 버튼
+         - 10분 ~ 타이머 만료 전: "여기까지만 작성할게요" (조기 완료)
+         - 타이머 만료 후: "작성 완료" (figma 679:900, 사용자 액션으로만 진행) */}
+      {(isCompleteAvailable || isTimerEnded) && (
         <View style={styles.completeBox}>
           <Button
             variant="primary"
             size="lg"
-            label={submitting ? '처리 중...' : '여기까지만 작성할게요'}
+            label={
+              submitting
+                ? '처리 중...'
+                : isTimerEnded
+                  ? '작성 완료'
+                  : '여기까지만 작성할게요'
+            }
             onPress={handleComplete}
             disabled={submitting}
             style={styles.completeButton}

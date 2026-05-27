@@ -9,13 +9,12 @@
  *      title: "5초 후에 걱정타임이\n시작됩니다."
  *      subtitle: "차분한 BGM과 함께\n오늘의 걱정을 털어놓아보아요"
  *  - 회전 원 (Frame 10, 118, 362, 123×123)
- *      배경 원: lightGray200 stroke 4
- *      회전 arc: mainGreen, 1/4 둘레, 1초에 360도 회전 (linear)
- *      가운데 숫자: 5→4→3→2→1 (40px bold)
- *  - bottom-button "지금 시작하기" (17, 702, 325×56) — 즉시 WorryTime
+ *      배경 원: lightGray200 stroke 2 (figma border-2)
+ *      회전 arc: mainGreen stroke 2, 1/4 둘레, 1초에 360도 회전 (linear)
+ *      가운데 숫자: 5→4→3→2→1 (32px Medium / 500)
+ *  - 하단 버튼 없음 (figma 60:298 — bottom-button 미포함)
  *
  * 종료: 카운트다운 0 도달 시 자동으로 navigation.replace('WorryTime')
- *       또는 "지금 시작하기" 누르면 즉시 replace.
  *
  * 반응형: useResponsive wp/hp, useSafeAreaInsets.top 보정.
  */
@@ -34,7 +33,7 @@ import Svg, { Circle } from 'react-native-svg';
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { Button, Text } from '../components/ui';
+import { Text } from '../components/ui';
 import { MiddleMessage } from '../components/MiddleMessage';
 import { Colors, useResponsive } from '../theme';
 import ExitIcon from '../../assets/icons/exit.svg';
@@ -73,9 +72,9 @@ export default function WorryTimeEntryScreen({ navigation }: Props) {
     return () => loop.stop();
   }, [progress]);
 
-  // ── 원 사이즈 (피그마 123×123, 화면 너비 비율) ──
+  // ── 원 사이즈 (피그마 60:303: 123×123, border-2 = stroke 2px) ──
   const circleSize = wp(123);
-  const stroke = 4;
+  const stroke = 2;
   const r = (circleSize - stroke) / 2;
   const circ = 2 * Math.PI * r;
   const cx = circleSize / 2;
@@ -91,11 +90,6 @@ export default function WorryTimeEntryScreen({ navigation }: Props) {
   const exitTop = Math.max(0, hp(65) - insets.top);
   const messageTop = Math.max(0, hp(182) - insets.top);
   const circleTop = Math.max(0, hp(362) - insets.top);
-  const buttonTop = Math.max(0, hp(702) - insets.top);
-
-  const handleStartNow = () => {
-    navigation.replace('WorryTime');
-  };
 
   const handleExit = () => {
     navigation.reset({ index: 0, routes: [{ name: 'Home' }] });
@@ -161,23 +155,12 @@ export default function WorryTimeEntryScreen({ navigation }: Props) {
           />
         </Svg>
 
-        {/* 가운데 숫자 */}
+        {/* 가운데 숫자 — figma 60:305: 32px Medium black */}
         <View style={styles.countCenter} pointerEvents="none">
           <Text style={styles.countText} allowFontScaling={false}>
             {count}
           </Text>
         </View>
-      </View>
-
-      {/* 지금 시작하기 버튼 */}
-      <View style={[styles.bottomBtnWrap, { top: buttonTop }]}>
-        <Button
-          variant="primary"
-          size="lg"
-          label="지금 시작하기"
-          onPress={handleStartNow}
-          style={{ width: wp(325) }}
-        />
       </View>
     </SafeAreaView>
   );
@@ -205,17 +188,12 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
+  // figma 60:305 — Inter Medium 32px / -0.64 / black
   countText: {
-    fontSize: 40,
-    fontWeight: '700',
+    fontSize: 32,
+    fontWeight: '500',
     color: '#000',
-    letterSpacing: -0.8,
+    letterSpacing: -0.64,
     includeFontPadding: false,
-  },
-  bottomBtnWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
   },
 });

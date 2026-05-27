@@ -3,7 +3,7 @@ import { View, StyleSheet, Image } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { OnboardingStackParamList } from '../../navigation/types';
-import { Button } from '../../components/ui';
+import { BottomButton } from '../../components/ui';
 import { OnboardingHeader } from '../../components/OnboardingHeader';
 import { Colors, useResponsive } from '../../theme';
 
@@ -58,27 +58,15 @@ export default function OnboardingWelcomeScreen({ navigation }: Props) {
         resizeMode="contain"
       />
 
-      {/* 하단 버튼 */}
-      <View style={[styles.buttonWrap, { bottom: hp(42) }]}>
-        <Button
-          variant="primary"
-          size="lg"
-          label="다음"
-          onPress={() => navigation.navigate('OnboardingNickname')}
-          style={{ width: wp(326) }}
-        />
-      </View>
+      {/* 하단 버튼 — figma 677:768 bottom-button (네비바 위로 띄움) */}
+      <BottomButton
+        label="다음"
+        onPress={() => navigation.navigate('OnboardingNickname')}
+      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: Colors.white },
-  // 하단 버튼 wrap
-  buttonWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
 });

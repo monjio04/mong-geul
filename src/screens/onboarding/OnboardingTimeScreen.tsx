@@ -4,7 +4,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import ExitIcon from '../../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { OnboardingStackParamList } from '../../navigation/types';
-import { Button, Text } from '../../components/ui';
+import { BottomButton, Text } from '../../components/ui';
 import { ProgressBar } from '../../components/ProgressBar';
 import { OnboardingHead } from '../../components/OnboardingHead';
 import { TimePickerSheet } from '../../components/TimePickerSheet';
@@ -131,16 +131,8 @@ export default function OnboardingTimeScreen({ route, navigation }: Props) {
         </Text>
       </View>
 
-      {/* 하단 버튼 — 화면 끝 42dp 위 */}
-      <View style={[styles.buttonWrap, { bottom: hp(42) }]}>
-        <Button
-          variant="primary"
-          size="lg"
-          label="다음"
-          onPress={handleNext}
-          style={{ width: wp(326) }}
-        />
-      </View>
+      {/* 하단 버튼 — figma 677:768 bottom-button (네비바 위로 띄움) */}
+      <BottomButton label="다음" onPress={handleNext} />
     </SafeAreaView>
   );
 }
@@ -184,11 +176,4 @@ const styles = StyleSheet.create({
   tipsEmoji: { fontSize: 15 },
   tipItem: { lineHeight: 20 },
 
-  // 하단 버튼 wrap
-  buttonWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
 });

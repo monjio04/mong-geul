@@ -37,9 +37,10 @@ export async function setupAndroidChannel(): Promise<void> {
     name: '걱정 타임 알림',
     description: '걱정 타임 시작/유예 알림',
     importance: Notifications.AndroidImportance.HIGH,
+    // 알림음 끄고 진동만 사용 (사용자 요청)
     enableVibrate: true,
     vibrationPattern: [0, 250, 250, 250],
-    sound: 'default',
+    sound: null,
     lockscreenVisibility: Notifications.AndroidNotificationVisibility.PUBLIC,
     bypassDnd: false,
     showBadge: false,
@@ -52,7 +53,8 @@ export function initNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
-      shouldPlaySound: true,
+      // 알림음 비활성 — 진동만 (Android channel.enableVibrate + iOS device silent mode)
+      shouldPlaySound: false,
       shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
@@ -233,7 +235,8 @@ async function scheduleAt(date: Date, content: ScheduleContent): Promise<string 
         title: content.title,
         body: content.body,
         data: content.data,
-        sound: true,
+        // 알림음 OFF — 진동만 (Android: channel 의 enableVibrate 사용 / iOS: 사일런트 모드 시 진동)
+        sound: false,
         ...(content.categoryIdentifier ? { categoryIdentifier: content.categoryIdentifier } : {}),
         ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
       },

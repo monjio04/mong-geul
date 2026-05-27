@@ -14,8 +14,14 @@ export type { TextProps } from './Text';
 export { Button } from './Button';
 export type { ButtonProps } from './Button';
 
+export { BottomButton } from './BottomButton';
+export type { BottomButtonProps } from './BottomButton';
+
 export { Input } from './Input';
 export type { InputProps } from './Input';
 
 export { Card } from './Card';
 export type { CardProps } from './Card';
+
+export { Switch } from './Switch';
+export type { SwitchProps } from './Switch';

@@ -18,7 +18,7 @@ import ExitIcon from '../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { getUserProfile, saveUserProfile } from '../storage/storage';
-import { Button, Text } from '../components/ui';
+import { BottomButton, Text } from '../components/ui';
 import { Colors, Spacing, Typography } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NicknameChange'>;
@@ -100,17 +100,12 @@ export default function NicknameChangeScreen({ navigation }: Props) {
           </Text>
         </View>
 
-        {/* 완료 버튼 — 화면 끝 42dp 위 (WorryTime과 동일) */}
-        <View style={styles.buttonWrap}>
-          <Button
-            variant="primary"
-            size="lg"
-            label="완료"
-            onPress={handleConfirm}
-            disabled={!isValid}
-            style={styles.confirm}
-          />
-        </View>
+        {/* 완료 버튼 — figma 677:768 bottom-button (네비바 위로 띄움) */}
+        <BottomButton
+          label="완료"
+          onPress={handleConfirm}
+          disabled={!isValid}
+        />
       </KeyboardAvoidingView>
     </SafeAreaView>
   );
@@ -158,15 +153,4 @@ const styles = StyleSheet.create({
     textAlign: 'right',
   },
 
-  // 하단 버튼 wrap — absolute bottom 42 (WorryTime 동일 위치)
-  buttonWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 42,
-    alignItems: 'center',
-  },
-  confirm: {
-    width: 325,
-  },
 });

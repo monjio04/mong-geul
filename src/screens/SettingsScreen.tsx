@@ -9,10 +9,10 @@
  * 걱정 타임 진행 중 (active/inProgress/advanced/delayed) 에는 시작/집중 시간 변경 불가.
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, ScrollView,
-  Modal, Platform, Pressable, Switch, Alert,
+  Modal, Platform, Pressable, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -29,9 +29,9 @@ import type { UserProfile, WorkerState } from '../storage/types';
 import { scheduleCycle, cancelCycleNotifications } from '../notifications/scheduler';
 import { resolveState } from '../timer/stateMachine';
 import { getNextCycleStart } from '../timer/worryTimeWindow';
-import { Button, Card, Text } from '../components/ui';
+import { Button, Card, Text, Switch } from '../components/ui';
 import { TimePickerSheet } from '../components/TimePickerSheet';
-import { Colors, Radii, Spacing } from '../theme';
+import { Colors, Radii, Spacing, useResponsive } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Settings'>;
 
@@ -43,6 +43,7 @@ type PendingChange =
   | { kind: 'focus'; minutes: number };
 
 export default function SettingsScreen({ navigation, route }: Props) {
+  const styles = useStyles();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [appState, setAppState] = useState<WorkerState>('idle');
   const [worryPickerOpen, setWorryPickerOpen] = useState(false);
@@ -295,7 +296,8 @@ export default function SettingsScreen({ navigation, route }: Props) {
 
         {/* ── 서비스 설정 섹션 ────────────────────────── */}
         <View style={styles.serviceSection}>
-          <Text variant="title" style={styles.sectionTitle}>서비스 설정</Text>
+          {/* figma 112:1012 — service section title↔list gap 14 (worry는 8) */}
+          <Text variant="title" style={styles.serviceSectionTitle}>서비스 설정</Text>
           <View style={styles.itemList}>
             <ToggleRow
               label="알림"
@@ -375,6 +377,7 @@ interface ChangeConfirmModalProps {
 }
 
 function ChangeConfirmModal({ change, onCancel, onConfirm }: ChangeConfirmModalProps) {
+  const styles = useStyles();
   // change가 null 이면 안 보임 (visible=false)
   const visible = change !== null;
 
@@ -440,6 +443,7 @@ interface LockedModalProps {
 }
 
 function LockedModal({ visible, onClose, onGoWrite }: LockedModalProps) {
+  const styles = useStyles();
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
       <Pressable style={styles.confirmBackdrop} onPress={onClose} />
@@ -488,6 +492,7 @@ function LockedModal({ visible, onClose, onGoWrite }: LockedModalProps) {
 // ─── 헤더 ──────────────────────────────────────────────
 
 function Header({ onBack }: { onBack: () => void }) {
+  const styles = useStyles();
   return (
     <View style={styles.header}>
       <TouchableOpacity
@@ -513,6 +518,7 @@ interface SettingRowProps {
 }
 
 function SettingRow({ label, children, onPress, disabled = false }: SettingRowProps) {
+  const styles = useStyles();
   return (
     <TouchableOpacity
       onPress={onPress}
@@ -534,16 +540,12 @@ function SettingRow({ label, children, onPress, disabled = false }: SettingRowPr
 function ToggleRow({
   label, value, onValueChange,
 }: { label: string; value: boolean; onValueChange: (v: boolean) => void }) {
+  const styles = useStyles();
   return (
     <Card variant="surface" style={styles.itemRow}>
       <Text variant="body">{label}</Text>
-      <Switch
-        value={value}
-        onValueChange={onValueChange}
-        trackColor={{ false: Colors.darkGray, true: Colors.mainGreen }}
-        thumbColor={Colors.white}
-        ios_backgroundColor={Colors.darkGray}
-      />
+      {/* figma 126:688 switch — 36×20 pill, on #16af5d / off #93a09a, knob 18×18 white */}
+      <Switch value={value} onValueChange={onValueChange} />
     </Card>
   );
 }
@@ -560,6 +562,7 @@ interface FocusTimeSheetProps {
 }
 
 function FocusTimeSheet({ visible, initial, onClose, onConfirm }: FocusTimeSheetProps) {
+  const styles = useStyles();
   const [picked, setPicked] = useState(initial);
 
   useEffect(() => {
@@ -622,261 +625,279 @@ function formatTime12h(hour24: number, minute: number) {
 }
 
 // ─── 스타일 ────────────────────────────────────────────
+//
+// 반응형 스케일링 (figma 360×800 → 디바이스 비율 유지)
+//  - wp(): 가로 비율, hp(): 세로 비율
+//  - borderRadius / borderWidth / fontSize / letterSpacing 은 스케일 대상에서 제외
+//    (가독성 + sub-pixel 이슈 회피)
+//
+// useStyles 훅으로 묶어서 어떤 컴포넌트에서든 호출만 하면 동일 styles 객체 획득
+function useStyles() {
+  const { wp, hp, width, height } = useResponsive();
+  // wp/hp 는 매 호출마다 새 함수 → width/height 만 deps 로 (실제 의존 값)
+  return useMemo(
+    () =>
+      StyleSheet.create({
+        screen: { flex: 1, backgroundColor: Colors.white },
 
-const styles = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.white },
+        // ── 헤더 ──────────────────────────────────────────
+        header: {
+          height: hp(56),
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingHorizontal: wp(Spacing.xxl), // 20
+          paddingTop: hp(Spacing.xs), // 8
+        },
+        headerBack: {
+          width: 24,
+          height: 24,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
 
-  // ── 헤더 ──────────────────────────────────────────
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xxl, // 20
-    paddingTop: Spacing.xs, // 8
-  },
-  headerBack: {
-    width: 24,
-    height: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+        // ── 바디 ──────────────────────────────────────────
+        body: { flex: 1 },
+        bodyInner: {
+          paddingHorizontal: wp(Spacing.xxl), // 20
+          // figma 103:200 — "설정" 타이틀 바닥 ↔ body 위 33.5dp.
+          // 헤더(h:56) 안 타이틀 중앙정렬로 인해 타이틀 바닥에서 헤더 끝까지 약 14dp 여백.
+          // 따라서 paddingTop = 33.5 − 14 = 19.5dp.
+          paddingTop: hp(19.5),
+          paddingBottom: hp(Spacing.xxxxxl), // 40
+        },
 
-  // ── 바디 ──────────────────────────────────────────
-  body: { flex: 1 },
-  bodyInner: {
-    paddingHorizontal: Spacing.xxl, // 20
-    paddingBottom: Spacing.xxxxxl, // 40
-  },
+        // ── 프로필 섹션 ──────────────────────────────────
+        profileSection: {},
+        profileNameRow: {
+          height: hp(63),
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          paddingRight: wp(Spacing.xxl), // 20
+          borderBottomWidth: 1,
+          borderBottomColor: Colors.border,
+        },
+        profileHint: {
+          marginTop: hp(11),
+        },
 
-  // ── 프로필 섹션 ──────────────────────────────────
-  profileSection: {},
-  profileNameRow: {
-    height: 63,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingRight: Spacing.xxl, // 20
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  profileHint: {
-    marginTop: 11,
-  },
+        // ── 걱정타임 변경 섹션 ──────────────────────────
+        // figma 112:1011 — body gap 36 (sections 사이) + py:21 (section 내 상하 padding)
+        worryTimeSection: {
+          marginTop: hp(36), // figma body gap 36
+          paddingTop: hp(21), // figma py:21
+          paddingBottom: hp(21), // figma py:21
+          borderBottomWidth: 1,
+          borderBottomColor: Colors.border,
+        },
+        sectionTitle: {
+          marginBottom: hp(8), // figma 112:1011 — title↔hint gap 8
+        },
+        sectionHint: {
+          marginBottom: hp(8), // figma 112:1011 — hint↔item-list gap 8 (parent gap:8)
+          lineHeight: 15, // fontSize 와 묶인 값 → 스케일 X
+        },
+        lockedHint: {
+          marginBottom: hp(Spacing.md), // 12
+        },
+        itemList: {
+          gap: hp(Spacing.sm), // 10
+        },
 
-  // ── 걱정타임 변경 섹션 ──────────────────────────
-  worryTimeSection: {
-    marginTop: Spacing.xxxxxl, // 40
-    paddingBottom: Spacing.lg, // 14
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  sectionTitle: {
-    marginBottom: 8, // figma 615:1801 — title↔hint gap 8
-  },
-  sectionHint: {
-    marginBottom: Spacing.md, // 12 — hint ↔ item-list 간격
-    lineHeight: 15, // 10 * 1.5 (figma leading-[1.5])
-  },
-  lockedHint: {
-    marginBottom: Spacing.md, // 12
-  },
-  itemList: {
-    gap: Spacing.sm, // 10
-  },
+        // 공통 아이템 행 (Card surface + 레이아웃)
+        itemRow: {
+          height: hp(63),
+          paddingHorizontal: wp(Spacing.xxl), // 20
+          paddingVertical: hp(Spacing.sm), // 10
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+        },
+        itemRowDisabled: { opacity: 0.5 },
 
-  // 공통 아이템 행 (Card surface + 레이아웃)
-  itemRow: {
-    height: 63,
-    paddingHorizontal: Spacing.xxl, // 20
-    paddingVertical: Spacing.sm, // 10
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  itemRowDisabled: { opacity: 0.5 },
+        // 시작 시간 값 — 시간 텍스트 밑줄
+        timeRowValue: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: wp(Spacing.xs), // 8
+        },
+        timeUnderline: {
+          width: wp(53),
+          height: hp(27),
+          borderBottomWidth: 1,
+          borderBottomColor: Colors.black,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
 
-  // 시작 시간 값 — 시간 텍스트 밑줄
-  timeRowValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xs, // 8
-  },
-  timeUnderline: {
-    width: 53,
-    height: 27,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.black,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
+        // 집중 시간 값
+        focusRowValue: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: wp(Spacing.xxs), // 4
+        },
 
-  // 집중 시간 값
-  focusRowValue: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.xxs, // 4
-  },
+        // ── 서비스 설정 섹션 ──────────────────────────
+        // figma 112:1012 — body gap 36 + py:21 + inner gap:14 (title↔list)
+        serviceSection: {
+          marginTop: hp(36), // figma body gap 36
+          paddingTop: hp(21), // figma py:21
+          paddingBottom: hp(21), // figma py:21
+          borderBottomWidth: 1,
+          borderBottomColor: Colors.border,
+        },
+        serviceSectionTitle: {
+          marginBottom: hp(14), // figma 112:1012 — title↔list gap 14
+        },
 
-  // ── 서비스 설정 섹션 ──────────────────────────
-  serviceSection: {
-    marginTop: Spacing.xxxxxl, // 40
-    paddingBottom: Spacing.lg, // 14
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
+        // ── 바텀시트 ──────────────────────────────────
+        backdrop: {
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: Colors.backdrop,
+        },
+        sheet: {
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          height: hp(403),
+          backgroundColor: Colors.white,
+          borderTopLeftRadius: Radii.lg, // 16
+          borderTopRightRadius: Radii.lg, // 16
+          paddingVertical: hp(Spacing.xxxxl), // 32
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        sheetTitle: {
+          alignSelf: 'stretch',
+          paddingHorizontal: wp(Spacing.xxxl), // 24
+        },
+        focusTopGroup: {
+          alignSelf: 'stretch',
+          alignItems: 'flex-start',
+          gap: hp(25), // 피그마 onboarding-head 내부 gap
+        },
 
-  // ── 바텀시트 ──────────────────────────────────
-  backdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.backdrop,
-  },
-  sheet: {
-    position: 'absolute',
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: 403,
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: Radii.lg, // 16
-    borderTopRightRadius: Radii.lg, // 16
-    paddingVertical: Spacing.xxxxl, // 32
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  sheetTitle: {
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.xxxl, // 24
-  },
-  focusTopGroup: {
-    alignSelf: 'stretch',
-    alignItems: 'flex-start',
-    gap: 25, // 피그마 onboarding-head 내부 gap (토큰화 안 된 값)
-  },
+        // 시간 칩 — figma: bg #f2f2f2, h 57, rounded 14.553, "00 : 00  오전"
+        timeChip: {
+          backgroundColor: Colors.lightGray200,
+          height: hp(57),
+          width: wp(232),
+          borderRadius: 14.553,
+          paddingLeft: wp(18.191),
+          paddingRight: wp(12.128),
+          flexDirection: 'row',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: wp(18.191),
+        },
+        timeChipText: {
+          fontSize: 19.404, // 폰트 크기는 스케일 X
+          fontWeight: '500',
+          color: Colors.black,
+          letterSpacing: -0.3881,
+        },
 
-  // 시간 칩 — 피그마: bg #f2f2f2, h 57, rounded 14.553, "00 : 00  오전"
-  timeChip: {
-    backgroundColor: Colors.lightGray200,
-    height: 57,
-    width: 232,
-    borderRadius: 14.553, // 피그마 raw 값 (token 외)
-    paddingLeft: 18.191,
-    paddingRight: 12.128,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 18.191,
-  },
-  timeChipText: {
-    fontSize: 19.404, // 피그마 raw 값
-    fontWeight: '500',
-    color: Colors.black,
-    letterSpacing: -0.3881,
-  },
+        // 집중 시간 라디오 리스트
+        focusList: {
+          height: hp(156),
+          justifyContent: 'space-between',
+          alignItems: 'flex-start',
+          paddingHorizontal: wp(Spacing.xxxl), // 24
+        },
+        focusRow: {
+          flexDirection: 'row',
+          alignItems: 'center',
+          gap: wp(Spacing.sm), // 10
+        },
+        radioIdle: {
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          borderWidth: 1,
+          borderColor: Colors.radioIdle,
+          backgroundColor: Colors.white,
+        },
+        radioSelectedOuter: {
+          width: 22,
+          height: 22,
+          borderRadius: 11,
+          borderWidth: 1,
+          borderColor: Colors.mainGreen,
+          backgroundColor: Colors.white,
+          padding: 3,
+          justifyContent: 'center',
+          alignItems: 'center',
+        },
+        radioSelectedInner: {
+          width: 14,
+          height: 14,
+          borderRadius: 7,
+          backgroundColor: Colors.mainGreen,
+        },
 
-  // 집중 시간 라디오 리스트
-  focusList: {
-    height: 156,
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    paddingHorizontal: Spacing.xxxl, // 24
-  },
-  focusRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: Spacing.sm, // 10
-  },
-  radioIdle: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: Colors.radioIdle,
-    backgroundColor: Colors.white,
-  },
-  radioSelectedOuter: {
-    width: 22,
-    height: 22,
-    borderRadius: 11,
-    borderWidth: 1,
-    borderColor: Colors.mainGreen,
-    backgroundColor: Colors.white,
-    padding: 3,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  radioSelectedInner: {
-    width: 14,
-    height: 14,
-    borderRadius: 7,
-    backgroundColor: Colors.mainGreen,
-  },
+        // 완료 버튼 (Button 공유 컴포넌트에 width override)
+        confirmButton: {
+          width: wp(325),
+        },
 
-  // 완료 버튼 (Button 공유 컴포넌트에 width override)
-  confirmButton: {
-    width: 325,
-  },
-
-  // ── 변경 확인 모달 (figma 615:1325 / 615:1714) ─────
-  // bg-white + rounded 12 + padding 24top/20others
-  // figma는 warning Card 스타일과 살짝 다름 (rounded 20 → 12, padding 24/20)
-  confirmBackdrop: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: Colors.backdrop,
-  },
-  confirmCenter: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-  },
-  changeConfirmCard: {
-    // warning Card 의 rounded 20/padding 24V/20H 를 figma 사양으로 override
-    borderRadius: 12,
-    paddingTop: 24,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
-    alignItems: 'flex-start',
-    // figma 폭 312 고정이면 한글 폰트 width 차이로 본문이 wrap → stretch + maxWidth 로
-    alignSelf: 'stretch',
-    maxWidth: 360,
-  },
-  changeConfirmTitleGroup: {
-    // figma 사양은 w-272 고정이지만 한글 폰트가 더 넓어 타이틀 wrap 됨 → stretch 로 카드 전체 폭 사용
-    alignSelf: 'stretch',
-    alignItems: 'flex-start',
-    gap: 11,
-  },
-  changeConfirmTitleLine: {
-    // figma: 18px Semi_Bold, leading 1.5
-    lineHeight: 27,
-    alignSelf: 'stretch',
-  },
-  changeConfirmSubtitle: {
-    lineHeight: 18, // 12 * 1.5
-  },
-  changeConfirmButtonRow: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 20, // figma: titleGroup ↔ buttonRow gap 20
-    alignSelf: 'stretch',
-    justifyContent: 'center',
-  },
-  changeConfirmButton: {
-    // figma: 132×43, rounded 8
-    width: 132,
-    height: 43,
-    borderRadius: 8,
-  },
-  changeConfirmButtonTextPrimary: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: -0.26,
-  },
-  changeConfirmButtonTextSecondary: {
-    fontSize: 13,
-    fontWeight: '600',
-    letterSpacing: -0.26,
-    color: Colors.darkGray, // figma: #93a09a
-  },
-});
+        // ── 변경 확인 모달 (figma 615:1325 / 615:1714) ─────
+        confirmBackdrop: {
+          ...StyleSheet.absoluteFillObject,
+          backgroundColor: Colors.backdrop,
+        },
+        confirmCenter: {
+          ...StyleSheet.absoluteFillObject,
+          justifyContent: 'center',
+          alignItems: 'center',
+          paddingHorizontal: wp(20),
+        },
+        changeConfirmCard: {
+          borderRadius: 12,
+          paddingTop: hp(24),
+          paddingBottom: hp(20),
+          paddingHorizontal: wp(20),
+          alignItems: 'flex-start',
+          alignSelf: 'stretch',
+          maxWidth: wp(360),
+        },
+        changeConfirmTitleGroup: {
+          alignSelf: 'stretch',
+          alignItems: 'flex-start',
+          gap: hp(11),
+        },
+        changeConfirmTitleLine: {
+          lineHeight: 27,
+          alignSelf: 'stretch',
+        },
+        changeConfirmSubtitle: {
+          lineHeight: 18,
+        },
+        changeConfirmButtonRow: {
+          flexDirection: 'row',
+          gap: wp(8),
+          marginTop: hp(20),
+          alignSelf: 'stretch',
+          justifyContent: 'center',
+        },
+        changeConfirmButton: {
+          width: wp(132),
+          height: hp(43),
+          borderRadius: 8,
+        },
+        changeConfirmButtonTextPrimary: {
+          fontSize: 13,
+          fontWeight: '600',
+          letterSpacing: -0.26,
+        },
+        changeConfirmButtonTextSecondary: {
+          fontSize: 13,
+          fontWeight: '600',
+          letterSpacing: -0.26,
+          color: Colors.darkGray,
+        },
+      }),
+    [width, height], // eslint-disable-line react-hooks/exhaustive-deps
+  );
+}

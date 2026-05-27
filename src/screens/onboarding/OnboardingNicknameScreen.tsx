@@ -7,7 +7,7 @@ import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context'
 import ExitIcon from '../../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { OnboardingStackParamList } from '../../navigation/types';
-import { Button, Text } from '../../components/ui';
+import { BottomButton, Text } from '../../components/ui';
 import { ProgressBar } from '../../components/ProgressBar';
 import { OnboardingHead } from '../../components/OnboardingHead';
 import { Colors, Radii, Spacing, Typography, useResponsive } from '../../theme';
@@ -56,15 +56,19 @@ export default function OnboardingNicknameScreen({ navigation }: Props) {
             <ProgressBar current={1} total={4} />
           </View>
 
-          {/* 제목 */}
-          <OnboardingHead
-            title="어떤 이름으로 불러드릴까요?"
-            subtitle="실명이 아니어도 괜찮아요"
-            style={[styles.headWrap, { paddingHorizontal: wp(20), marginBottom: hp(33) }]}
-          />
+          {/* 제목 — figma 90:348 head left:30
+              ⚠️ OnboardingHead 자체가 maxWidth:wp(300) 이라 안쪽 padding 으로 처리하면
+              실제 텍스트 영역이 240dp 로 좁아져 wrap 발생 → 바깥 View 로 left 정렬 */}
+          <View style={{ paddingLeft: wp(30), marginBottom: hp(33) }}>
+            <OnboardingHead
+              title="어떤 이름으로 불러드릴까요?"
+              subtitle="실명이 아니어도 괜찮아요"
+              style={styles.headWrap}
+            />
+          </View>
 
-          {/* 입력 — 피그마 input-name 패턴 */}
-          <View style={[styles.inputSection, { paddingHorizontal: wp(20), gap: hp(8) }]}>
+          {/* 입력 — figma 216:449 input-name left:30, w:300 */}
+          <View style={[styles.inputSection, { paddingHorizontal: wp(30), gap: hp(8) }]}>
             <TextInput
               style={styles.input}
               placeholder={randomSuggested}
@@ -76,24 +80,20 @@ export default function OnboardingNicknameScreen({ navigation }: Props) {
               returnKeyType="done"
               onSubmitEditing={handleNext}
             />
+            {/* figma I216:449;133:461 — "공백 없이 12자 이내로 작성해주세요." */}
             <Text variant="sm" color="darkGray">
-              공백 포함 12자 이내로 작성해주세요.
+              공백 없이 12자 이내로 작성해주세요.
             </Text>
           </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
-      {/* 하단 버튼 — 화면 끝 42dp 위 */}
-      <View style={[styles.buttonWrap, { bottom: hp(42) }]}>
-        <Button
-          variant="primary"
-          size="lg"
-          label="다음"
-          onPress={handleNext}
-          disabled={!nickname.trim()}
-          style={{ width: wp(326) }}
-        />
-      </View>
+      {/* 하단 버튼 — figma 677:768 bottom-button (네비바 위로 띄움) */}
+      <BottomButton
+        label="다음"
+        onPress={handleNext}
+        disabled={!nickname.trim()}
+      />
     </SafeAreaView>
   );
 }
@@ -122,11 +122,4 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
   },
 
-  // 하단 버튼 wrap
-  buttonWrap: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-  },
 });

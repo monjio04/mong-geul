@@ -73,10 +73,12 @@ export function MainButton({
             disabled={!leftPressableInIdle}
             style={styles.leftIdle}
           >
-            <Text variant="title" color="darkGray" align="center" style={styles.leftIdleValue}>
+            {/* figma 109:505: Inter SemiBold 16/-0.32 → Typography.title */}
+            <Text variant="title" color="darkGray" align="center">
               {remainingTime}
             </Text>
-            <Text variant="caption" color="darkGray" align="center" style={styles.leftIdleSub}>
+            {/* figma 109:511: Inter Medium 11/-0.22 → Typography.caption */}
+            <Text variant="caption" color="darkGray" align="center">
               걱정타임까지 남은 시간
             </Text>
           </Pressable>
@@ -128,6 +130,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   // idle 좌측 — 2줄 텍스트 박스 (잠금 외관)
+  // figma 109:504: 132×72, bg lightGray200, radius 16
+  // 텍스트 배치 (figma 109:505 / 109:511):
+  //   "00:00"   top calc(50% - 16px) = 20px from top
+  //   "걱정타임…" top calc(50% + 3px)  = 39px from top
+  //   → flex center + gap 0 으로 자연 정렬 (variant 자체 height 로 figma 좌표 매칭)
   leftIdle: {
     width: 132,
     height: 72,
@@ -135,15 +142,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.lightGray200,
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 2,
-  },
-  leftIdleValue: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  leftIdleSub: {
-    fontSize: 11,
-    fontWeight: '500',
+    gap: 0,
   },
   // worry-time 좌측 — 필사하기 (radius 12)
   leftWorryTime: {

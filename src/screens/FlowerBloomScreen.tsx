@@ -37,7 +37,9 @@ type Props = NativeStackScreenProps<RootStackParamList, 'FlowerBloom'>;
 const FLOWER_SHOW: Record<FlowerType, ReturnType<typeof require>> = {
   1: require('../../assets/lottie/flowers/flower_show_1.json'),
   2: require('../../assets/lottie/flowers/flower_show_2.json'),
-  3: require('../../assets/lottie/flowers/flower_show_3.json'),
+  // flower_show_3 은 색이 잘못됨(초록)으로 idle 자산(분홍) 으로 fallback → 색 일치 우선
+  // bloom 모션 없이 idle 루프만 재생됨 (분홍 show 자산 확보 시 교체)
+  3: require('../../assets/lottie/flowers/flower_idle_3.json'),
   4: require('../../assets/lottie/flowers/flower_show_4.json'),
   5: require('../../assets/lottie/flowers/flower_show_5.json'),
   6: require('../../assets/lottie/flowers/flower_show_6.json'),
@@ -130,17 +132,27 @@ export default function FlowerBloomScreen({ route, navigation }: Props) {
           ]}
         >
           {isSprout ? (
-            // 새싹 — figma 649:765 (100×69.7 SVG)
-            <FSproutIcon width={wp(100)} height={wp(100) * (69.7 / 100)} />
+            // 새싹 — figma 649:748/765: 새싹 100×69.734 in 원 185 = 54% 폭 (SVG 라 padding 없음)
+            <FSproutIcon
+              width={wp(100)}
+              height={wp(100) * (69.734 / 100)}
+            />
           ) : (
             // 꽃 — Lottie 모션
+            // figma 533:620 / 615:679: 꽃 100×87 in 원 185 = 54% 차지
+            // lottie 내부 분석:
+            //   canvas 1080×1080, shape intrinsic 21.5×17.9, 최대 scale 2000%
+            //   → 최종 시각 flower = canvas 의 39.8%
+            // 시각 100dp 매칭: container = 100 / 0.398 ≈ 251dp.
+            // 정사각 container 로 잡아 1:1 lottie 가 가로 손실 없이 풀스케일 동작.
+            // (container 가 원(185) 보다 커도 원의 overflow:hidden 으로 자연스럽게 클립)
             <LottieView
               ref={lottieRef}
               source={FLOWER_SHOW[(flowerType ?? 1) as FlowerType]}
               autoPlay={false}
               loop={false}
               onAnimationFinish={handleAnimationFinish}
-              style={{ width: wp(100), height: hp(86) }}
+              style={{ width: wp(251), height: wp(251) }}
               resizeMode="contain"
             />
           )}

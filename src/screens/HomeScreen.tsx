@@ -21,7 +21,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   View, StyleSheet, TouchableOpacity, Image, Modal, Pressable,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
@@ -44,6 +44,7 @@ const MAIN_CHAR_IDLE = require('../../assets/lottie/character_idle.json');
 type Props = NativeStackScreenProps<RootStackParamList, 'Home'>;
 
 export default function HomeScreen({ navigation, route }: Props) {
+  const insets = useSafeAreaInsets();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [appState, setAppState] = useState<WorkerState>('idle');
   const [countdown, setCountdown] = useState<string>('00:00');
@@ -239,8 +240,9 @@ export default function HomeScreen({ navigation, route }: Props) {
         />
       </View>
 
-      {/* 하단 액션 영역 */}
-      <View style={styles.bottomBar}>
+      {/* 하단 액션 영역 — safe area(네비바) 위로 살짝 띄움
+          insets.bottom 0인 디바이스에서도 최소 32dp 확보 */}
+      <View style={[styles.bottomBar, { bottom: Math.max(32, insets.bottom + 8) }]}>
         <MainButton
           status={isActive ? 'worry-time' : 'idle'}
           remainingTime={countdown}
@@ -411,7 +413,7 @@ const styles = StyleSheet.create({
   // 말풍선 (figma top=234 → 29.25%, center 정렬)
   bubbleAnchor: {
     position: 'absolute',
-    top: '28%',
+    top: '27%',
     left: 0,
     right: 0,
     alignItems: 'center',
@@ -424,12 +426,16 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // main_char (figma left=82 top=346 196×207)
+  // main_char (figma 291:2006 left=82 top=342 196×207, 360×800 캔버스)
+  // — lottie character_idle.json 은 1080×1080 캔버스에 캐릭터가 약 51%만 차지 →
+  //   resizeMode="contain" 으로 그리면 figma 사양보다 작아 보임.
+  //   sub_char 와 동일하게 anchor box 를 키워 visual size 를 figma 와 맞춤.
+  //   figma visual center (180, 445.5) = (50%, 55.7%) 유지하면서 width 부스트.
   mainCharAnchor: {
     position: 'absolute',
-    left: '22.8%',  // 82/360
-    top: '43.25%',  // 346/800
-    width: '54.4%', // 196/360
+    left: '15%',     // (100 - 70) / 2 — 가로 중앙 유지
+    top: '39%',      // 55.7% - height/2 — visual center 55.7% 유지
+    width: '70%',    // figma 54.4% × 1.29x — lottie 내부 padding 보정
     aspectRatio: 196 / 207,
   },
   mainCharLottie: {
@@ -439,10 +445,11 @@ const styles = StyleSheet.create({
 
   // sub_char (figma left=152 top=317 57×59) — Lottie 내부 padding 보정으로 25% 사용
   // (figma 15.8% 그대로면 Lottie 캔버스 안의 꽃이 너무 작게 보임)
+  // main_char 가 39%로 올라간 만큼 sub_char 도 같이 올려 머리 위 정합 유지
   subCharAnchor: {
     position: 'absolute',
     left: '38.2%',   // 25%가 되어 가운데 정렬되도록 보정 (152/360 = 42.2% 였던 중심 유지)
-    top: '38.5%',    // 살짝 위로 올려 머리 위에 자연스럽게
+    top: '36%',   // main_char top 4.25% 위로 이동에 맞춰 함께 이동 (38.5% - 4.25%)
     width: '25%',
     aspectRatio: 57 / 59,
   },
@@ -452,9 +459,9 @@ const styles = StyleSheet.create({
   },
 
   // 하단 액션 — MainButton width=320 고정 중앙 정렬
+  // bottom 은 인라인에서 insets.bottom + 45 (figma pb-45 + safe area) 적용
   bottomBar: {
     position: 'absolute',
-    bottom: 32,
     left: 0, right: 0,
     alignItems: 'center',
   },

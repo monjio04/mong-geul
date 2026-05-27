@@ -64,9 +64,14 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
 
   // sub_char (꽃) — guide1/4 = 캐릭터 머리 위, guide2/3 = 버튼 위
   const subCharOnHead = step === 1 || step === 4;
-  const subCharTop = subCharOnHead
-    ? hp(250) // 캐릭터 기준(%)이므로 insets.top을 빼지 않아야 머리 위에 정확히 안착함
-    : Math.max(0, hp(639) - insets.top);
+
+  // 버튼 위 위치 (guide2/3): MainButton wrapper 가 bottom 앵커(h:136, pb:45) 로 바뀌었으므로
+  // sub_char 도 bottom 앵커로 맞춰야 버튼 top 에 정확히 붙음.
+  //   - 버튼 top from screen bottom = pb(45) + (wrapperH 136 − pb 45 − btnH 72) / 2 + btnH 72
+  //                                = 45 + 9.5 + 72 = 126.5
+  //   - sub_char.bottom = 126.5 → sub_char 아래 가장자리가 버튼 top 과 정확히 맞물림
+  const MAIN_BTN_TOP_FROM_BOTTOM = 126.5;
+
   // 버튼 위 위치: guide2 = 우측 (걱정 정리하기) 위, guide3 = 우측 (걱정 맡겨두기) 위
   // Home main-button x=20, w=320. 우측 박스 시작 = 20+132+8 = 160, 가운데 ≈ 160+90 = 250.
   // 피그마는 guide2 x=227 / guide3 x=162 인데 우측 박스 중앙(약 250) 또는 좌측 박스 중앙(약 86)에
@@ -82,7 +87,7 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
   const cardWidth = wp(294);
 
   const hintTop = Math.max(0, hp(557.5) - insets.top);
-  const mainBtnTop = Math.max(0, hp(686) - insets.top);
+  // MainButton 은 figma 112:711 wrapper 사양 (bottom 앵커 + pb:45) 으로 변경 — 절대 top 불필요
 
   // 캐릭터 — 피그마 main_char (360×800 기준 x=110, y=265, w=156, h=165)
   // 반응형: 화면 비율(%)로 위치/크기 잡고 aspectRatio로 비율 유지 (디바이스별 늘어남 방지)
@@ -158,18 +163,18 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
         />
       </View>
 
-      {/* sub_char (꽃) — 슬라이드별 위치 */}
+      {/* sub_char (꽃) — guide1/4: 캐릭터 머리 위 (top 앵커), guide2/3: 버튼 위 (bottom 앵커) */}
       <Image
         source={SUB_CHAR}
         style={{
           position: 'absolute',
           left: subCharLeft,
-          top: subCharTop,
           width: wp(45),
           height: hp(47),
+          top: subCharOnHead ? hp(250) : undefined,
+          bottom: subCharOnHead ? undefined : MAIN_BTN_TOP_FROM_BOTTOM,
         }}
         resizeMode="contain"
-        pointerEvents="none"
       />
 
       {/* 텍스트박스 */}
@@ -201,10 +206,10 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
         </Text>
       )}
 
-      {/* MainButton — 슬라이드별 status + highlight */}
+      {/* MainButton — figma 112:711 wrapper (bottom 앵커, pb:45, items-center) */}
       <View
         pointerEvents="box-none"
-        style={[styles.mainBtnWrap, { top: mainBtnTop }]}
+        style={styles.mainBtnWrap}
       >
         <MainButton
           status={mainButtonStatus}
@@ -266,10 +271,15 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
   },
+  // figma 112:711 — w:360, h:136, pb:45, items-center, justify-center (네비바 위로 띄움)
   mainBtnWrap: {
     position: 'absolute',
+    bottom: 0,
     left: 0,
     right: 0,
+    height: 136,
+    paddingBottom: 45,
     alignItems: 'center',
+    justifyContent: 'center',
   },
 });

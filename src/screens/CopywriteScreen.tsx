@@ -30,7 +30,7 @@ import {
 import type { UserProfile } from '../storage/types';
 import { completeTimer, startAdvanced } from '../timer/timerService';
 import { resolveState } from '../timer/stateMachine';
-import { Button, Text } from '../components/ui';
+import { BottomButton, Text } from '../components/ui';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { AudioToggleIcon } from '../components/AudioToggleIcon';
 import { Colors, Radii, useResponsive } from '../theme';
@@ -201,16 +201,6 @@ export default function CopywriteScreen({ navigation }: Props) {
       lineHeight: 21,
     },
 
-    buttonWrap: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: hp(42),
-      alignItems: 'center',
-    },
-    completeButton: {
-      width: wp(325),
-    },
   }), [width, height]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
@@ -257,17 +247,12 @@ export default function CopywriteScreen({ navigation }: Props) {
         resizeMode="contain"
       />
 
-      {/* 작성 완료 버튼 — 화면 끝 42dp 위 (WorryTime과 동일) */}
-      <View style={styles.buttonWrap}>
-        <Button
-          variant="primary"
-          size="lg"
-          label={submitting ? '처리 중...' : '작성 완료'}
-          onPress={handleComplete}
-          disabled={submitting}
-          style={styles.completeButton}
-        />
-      </View>
+      {/* 작성 완료 버튼 — figma 677:768 bottom-button (네비바 위로 띄움) */}
+      <BottomButton
+        label={submitting ? '처리 중...' : '작성 완료'}
+        onPress={handleComplete}
+        disabled={submitting}
+      />
     </View>
   );
 }
