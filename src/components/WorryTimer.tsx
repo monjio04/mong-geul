@@ -8,21 +8,24 @@
  * 사양:
  *  - frame: w=325, h=37, border-radius 911.695 (반원), border 1px #D7E2DD, bg #FFF
  *  - fill: bg #F1F2AC (옅은 yellow), 좌→우 채워짐
- *  - 진행 중: 탭 시 fill 위에 시계 SVG 아이콘 + "MM:SS" 텍스트 오버레이 (탭 토글)
+ *  - 진행 중: `selected` true 시 fill 위에 시계 SVG 아이콘 + "MM:SS" 텍스트 오버레이
  *  - 시간 끝난 후 (elapsedSec >= totalSec):
  *      · fill 100% (자동으로 전체 yellow)
- *      · 텍스트 항상 표시 (탭 불필요)
+ *      · 텍스트 항상 표시 (selected 무관)
  *      · 텍스트 색상 mainGreen (#16af5d)
  *      · 폰트 크기 20px Medium
+ *
+ * 탭 핸들링: 컴포넌트 외부 (예: WorryTimeScreen 화면 전체 Pressable) 에서
+ * selected 상태를 관리해 props 로 전달. 본 컴포넌트는 presentational only.
  *
  * 시계 아이콘: assets/icons/timer.svg 에서 시계 부분만 추출 (viewBox 122 11 18 18)
  *
  * 사용 예:
- *   <WorryTimer elapsedSec={120} totalSec={1200} />
+ *   <WorryTimer elapsedSec={120} totalSec={1200} selected={timerVisible} />
  */
 
-import React, { useState } from 'react';
-import { Pressable, View, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
+import React from 'react';
+import { View, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
 import { SvgXml } from 'react-native-svg';
 import { Text } from './ui/Text';
 import { Colors } from '../theme';
@@ -44,12 +47,12 @@ function clockIconXml(strokeColor: string): string {
 export interface WorryTimerProps {
   elapsedSec: number;
   totalSec: number;
+  /** 시간 텍스트 표시 여부 (외부 컨트롤). ended 시점에는 자동으로 표시됨. */
+  selected?: boolean;
   style?: StyleProp<ViewStyle>;
 }
 
-export function WorryTimer({ elapsedSec, totalSec, style }: WorryTimerProps) {
-  const [selected, setSelected] = useState(false);
-
+export function WorryTimer({ elapsedSec, totalSec, selected = false, style }: WorryTimerProps) {
   const progress = totalSec > 0 ? Math.min(1, elapsedSec / totalSec) : 0;
   const remainingSec = Math.max(0, totalSec - elapsedSec);
   const remainingMin = Math.floor(remainingSec / 60);
@@ -63,17 +66,11 @@ export function WorryTimer({ elapsedSec, totalSec, style }: WorryTimerProps) {
   const textColor = isEnded ? Colors.mainGreen : Colors.textPrimary;
 
   return (
-    <Pressable
-      style={[styles.frame, style]}
-      onPress={() => setSelected((v) => !v)}
-      hitSlop={{ top: 4, bottom: 4, left: 4, right: 4 }}
-      // ended 상태에서는 탭 없이도 표시되므로 disabled 처리 (불필요한 toggle 방지)
-      disabled={isEnded}
-    >
+    <View style={[styles.frame, style]}>
       {/* 채움 — 좌측부터 progress % (ended 시 100%) */}
       <View style={[styles.barFill, { width: `${progress * 100}%` }]} />
 
-      {/* 시간 텍스트 + 시계 아이콘 오버레이 — 탭 시 (또는 ended 시 항상) */}
+      {/* 시간 텍스트 + 시계 아이콘 오버레이 — selected 시 (또는 ended 시 항상) */}
       {showTime && (
         <View style={styles.timeOverlay} pointerEvents="none">
           <SvgXml xml={clockIconXml(strokeColor)} width={18} height={18} />
@@ -88,7 +85,7 @@ export function WorryTimer({ elapsedSec, totalSec, style }: WorryTimerProps) {
           </Text>
         </View>
       )}
-    </Pressable>
+    </View>
   );
 }
 

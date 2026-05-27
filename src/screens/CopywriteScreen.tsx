@@ -170,34 +170,31 @@ export default function CopywriteScreen({ navigation }: Props) {
       aspectRatio: 33 / 34,
     },
 
-    // 필사 콘텐츠 카드 — 피그마: w=328, h=313
+    // 필사 콘텐츠 카드 — figma 474:1001: w=328, height auto (콘텐츠 따라 늘어남)
+    //   px-27, py-36, gap-31 (title↔body), shadow 0/4/10 25%
     card: {
       position: 'absolute',
       left: wp(16),
       width: wp(328),
-      height: hp(313),
       backgroundColor: Colors.lightGray100,
       borderRadius: Radii.lg,
-      paddingLeft: wp(27),
-      paddingRight: wp(28),
-      paddingTop: hp(36),
-      paddingBottom: hp(56),
+      paddingHorizontal: wp(27),       // figma px-27 (양쪽 대칭)
+      paddingTop: hp(36),              // figma py-36
+      paddingBottom: hp(36),           // figma py-36 (이전 hp(56) 에서 수정)
       shadowColor: '#000',
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.25,
       shadowRadius: 10,
       elevation: 5,
-      overflow: 'hidden',
+      // overflow: 'hidden' 제거 — 콘텐츠 따라 늘어나야 하므로
     },
     cardBody: {
-      marginTop: hp(31),
+      marginTop: hp(31), // figma gap-31 (title ↔ body)
     },
     cardBodyText: {
+      // figma 474:1003 — rgba(0,0,0,0.8), 14px medium, leading-1.5
+      // author 도 동일 색상/사이즈 (본문 마지막 줄로 처리)
       opacity: 0.8,
-      lineHeight: 21,
-    },
-    cardBodyAuthor: {
-      opacity: 0.6,
       lineHeight: 21,
     },
 
@@ -225,17 +222,16 @@ export default function CopywriteScreen({ navigation }: Props) {
         <SpeechBubble text={hint} />
       </View>
 
-      {/* 필사 콘텐츠 카드 (center, y=253) — sub_char 먼저 렌더해 발이 카드 위에 */}
+      {/* 필사 콘텐츠 카드 (center, y=253) — figma 474:1001
+          height 자동 (콘텐츠 따라 늘어남), pb:36 유지, author 는 본문에 통합 */}
       <View style={[styles.card, { top: adjustTop(253) }]}>
         <Text variant="titleLargeMid">오늘의 필사 콘텐츠</Text>
         {entry && (
           <View style={styles.cardBody}>
-            <Text variant="body" style={styles.cardBodyText}>{entry.body}</Text>
-            {entry.author ? (
-              <Text variant="body" style={styles.cardBodyAuthor}>
-                {`\n${entry.author}`}
-              </Text>
-            ) : null}
+            <Text variant="body" style={styles.cardBodyText}>
+              {entry.body}
+              {entry.author ? `\n\n${entry.author}` : ''}
+            </Text>
           </View>
         )}
       </View>

@@ -89,15 +89,26 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
   const hintTop = Math.max(0, hp(557.5) - insets.top);
   // MainButton 은 figma 112:711 wrapper 사양 (bottom 앵커 + pb:45) 으로 변경 — 절대 top 불필요
 
-  // 캐릭터 — 피그마 main_char (360×800 기준 x=110, y=265, w=156, h=165)
-  // 반응형: 화면 비율(%)로 위치/크기 잡고 aspectRatio로 비율 유지 (디바이스별 늘어남 방지)
+  // 캐릭터 — 슬라이드별 위치 다름 (figma):
+  //   guide1/4 (301:2491 / 301:4911): top=265, left=110  → 화면 중앙 가까이
+  //   guide2   (301:2937 main_char):  top=341, left=20   → 좌측 (텍스트 옆)
+  //   guide3   (301:3869 main_char):  top=341, left=35   → 좌측 (살짝 안쪽)
+  //   크기 156×165 동일
+  // 반응형: 화면 비율(%)로 위치/크기 잡고 aspectRatio 로 비율 유지
+  const charPos =
+    step === 1 || step === 4
+      ? { top: '33.1%' as const, left: '30.5%' as const } // 265/800, 110/360
+      : step === 2
+        ? { top: '39.5%' as const, left: '5.6%' as const } // 341/800, 20/360
+        : { top: '39.5%' as const, left: '9.7%' as const }; // 341/800, 35/360
 
   // ── 슬라이드별 본문 ──
   const renderCardContent = () => {
     if (step === 1) {
+      // figma 301:2491 296:2485 — 캐릭터 자기소개 (이름 "몽구리" + 🐸)
       return (
         <Text variant="title" align="center" style={styles.cardBody}>
-          {`안녕하세요! 저는 ${nickname}이에요.\n`}
+          {'안녕하세요! 제 이름은 몽구리에요🐸\n'}
           <Text variant="title" color="mainGreen">하루틈</Text>
           에 대해 알려드릴게요!
         </Text>
@@ -152,8 +163,8 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
       />
 
       {/* ── 강조 요소들 (dim 위) ── */}
-      {/* 캐릭터 Lottie — 반응형 (% + aspectRatio, 모든 디바이스 비율 유지) */}
-      <View pointerEvents="none" style={styles.characterWrap}>
+      {/* 캐릭터 Lottie — step 별 위치 분기 (charPos), 크기/비율 동일 */}
+      <View pointerEvents="none" style={[styles.characterWrap, charPos]}>
         <LottieView
           source={CHARACTER_LOTTIE}
           autoPlay
@@ -235,12 +246,11 @@ const styles = StyleSheet.create({
     width: '100%',
     aspectRatio: 360 / 800,
   },
-  // 캐릭터 — 화면 비율 기반 (피그마 360×800: top=265, left=110, w=156, h=165)
+  // 캐릭터 — 크기/비율만 정의 (top/left 는 step 별 charPos 로 인라인 적용)
+  // 피그마 360×800: w=156, h=165 (모든 step 동일 사이즈)
   characterWrap: {
     position: 'absolute',
-    top: '33.1%',        // 265/800
-    left: '30.5%',       // 110/360
-    width: '43.3%',      // 156/360
+    width: '43.3%',         // 156/360
     aspectRatio: 156 / 165, // 비율 유지 — height 자동
   },
   character: {

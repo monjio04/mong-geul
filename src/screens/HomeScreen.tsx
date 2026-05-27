@@ -2,7 +2,8 @@
  * 홈 화면 — 피그마 메인화면-걱정타임 (active, 301:5437) / 걱정타임X (idle, 112:807)
  *
  * 레이아웃 (피그마 360×800 기준, 화면 비율로 반응형):
- *  - 헤더: 로고 (좌, x=20 y=59 40×40) | < YYYY.MM > (중앙, chevron) | 설정 (우, x=308 y=67)
+ *  - 헤더: (좌측 spacer 40dp) | < YYYY.MM > (중앙 y=68, chevron) | 설정 (우 x=308 y=63)
+ *           figma 301:5437 — vertical center y=75 (safe area + 51dp)
  *  - 배경: background.png + sky base
  *  - 말풍선 (active 만): figma 메인 spec — center, top 234, lightGray100 pill, 12px medium, 꼬리 2개
  *  - main_char (svg): left=82 top=346 196×207 → '22.8% / 43.25% / 54.4% / aspect 196:207'
@@ -37,6 +38,7 @@ import { FlowerGarden } from '../components/FlowerGarden';
 import { navigationRef } from '../../App';
 import { Button, Card, Text } from '../components/ui';
 import { Colors } from '../theme';
+import SettingsIcon from '../../assets/icons/settings.svg';
 const BG_IMAGE = require('../../assets/images/background.png');
 const IDLE_FLOWER = require('../../assets/lottie/idle_flower.json');
 const MAIN_CHAR_IDLE = require('../../assets/lottie/character_idle.json');
@@ -176,9 +178,8 @@ export default function HomeScreen({ navigation, route }: Props) {
 
       {/* 헤더 */}
       <View style={styles.header}>
-        <View style={styles.logo}>
-          <Text style={styles.logoText}>로고</Text>
-        </View>
+        {/* 좌측 spacer — 설정 버튼(40dp)과 균형 맞춰 중앙 날짜 정렬 유지 */}
+        <View style={styles.headerSpacer} />
         <View style={styles.headerCenter}>
           <TouchableOpacity
             onPress={handlePrevMonth}
@@ -199,7 +200,7 @@ export default function HomeScreen({ navigation, route }: Props) {
           onPress={() => navigation.navigate('Settings')}
           accessibilityLabel="설정"
         >
-          <Ionicons name="settings-outline" size={24} color="#000" />
+          <SettingsIcon width={24} height={24} />
         </TouchableOpacity>
       </View>
 
@@ -369,21 +370,20 @@ function formatDiff(fromMs: number, toMs: number): string {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.white },
 
-  // 헤더
+  // 헤더 — figma 301:5437: 날짜/설정 vertical center = frame y=75
+  //   = safe area top + 51dp (status bar 24dp 가정)
+  //   alignItems: center 라 vertical center = (height + paddingTop) / 2
+  //   (56+4)/2 = 30  →  (80+22)/2 = 51 ✓
   header: {
-    height: 56,
+    height: 80,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     paddingHorizontal: 20,
-    paddingTop: 4,
+    paddingTop: 22,
   },
-  logo: {
-    width: 40, height: 40, borderRadius: 8,
-    backgroundColor: '#d9d9d9',
-    justifyContent: 'center', alignItems: 'center',
-  },
-  logoText: { fontSize: 12, color: '#000', letterSpacing: -0.24 },
+  // 좌측 spacer (40dp) — 설정 버튼과 대칭으로 중앙 날짜 정렬 유지
+  headerSpacer: { width: 40, height: 40 },
 
   headerCenter: {
     flexDirection: 'row',

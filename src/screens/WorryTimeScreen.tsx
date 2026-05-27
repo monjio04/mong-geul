@@ -17,7 +17,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, StyleSheet, StatusBar, ScrollView, Alert, Vibration,
+  View, StyleSheet, StatusBar, ScrollView, Alert, Vibration, Pressable,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -84,6 +84,9 @@ export default function WorryTimeScreen({ navigation }: Props) {
   const [startedAt, setStartedAt] = useState<string | null>(null);
   const [elapsedSec, setElapsedSec] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  // 타이머 시간 텍스트 표시 토글 — 화면 아무 곳이나 탭 시 on/off
+  // ended 상태에서는 WorryTimer 가 항상 표시하므로 이 state 와 무관
+  const [timerVisible, setTimerVisible] = useState(false);
 
   // mount: profile 로드 + timer 시작 (없으면 fallback) + 실제 메모 로드
   useEffect(() => {
@@ -306,18 +309,23 @@ export default function WorryTimeScreen({ navigation }: Props) {
       gap: hp(8),
       paddingBottom: hp(120),
     },
+    // figma 116:395 worrytime-memo-list 아이템:
+    //   bg lightGray200, rounded-16, h-82 justify-center
+    //   pt-18 pb-16 px-15, gap-4 (본문 ↔ 시간 행)
     memoCard: {
       width: wp(315),
-      backgroundColor: Colors.lightGray100,
-      borderRadius: Radii.md,
+      minHeight: hp(82),               // figma h-82 (긴 메모는 자연스럽게 늘어남)
+      justifyContent: 'center',        // figma justify-center
+      backgroundColor: Colors.lightGray200,
+      borderRadius: Radii.lg,          // figma rounded-16
       paddingTop: hp(18),
-      paddingLeft: wp(15),
-      paddingRight: wp(15),
-      paddingBottom: hp(8),
+      paddingHorizontal: wp(15),
+      paddingBottom: hp(16),           // figma pb-16 (이전 hp(8))
     },
     memoText: {},
+    // figma gap-4 (이전 marginTop hp(16))
     memoTimeRow: {
-      marginTop: hp(16),
+      marginTop: hp(4),
       alignItems: 'flex-end',
     },
 
@@ -353,8 +361,13 @@ export default function WorryTimeScreen({ navigation }: Props) {
 
   // ─── 렌더 ──────────────────────────────────────────────
 
+  // 화면 아무 곳이나 탭 시 타이머 토글 (버튼/스위치 등 자체 핸들러 가진 자식은 우선 작동)
+  const handleScreenTap = () => {
+    setTimerVisible((v) => !v);
+  };
+
   return (
-    <View style={styles.container}>
+    <Pressable style={styles.container} onPress={handleScreenTap}>
       <StatusBar barStyle="dark-content" backgroundColor="transparent" translucent />
 
       {/* 상단 날짜 (center, y=73) */}
@@ -392,11 +405,12 @@ export default function WorryTimeScreen({ navigation }: Props) {
         <MainCharSvg width={wp(114)} height={wp(114) * (120 / 114)} />
       </View>
 
-      {/* WorryTimer (x=18, y=304, 325×37) */}
+      {/* WorryTimer (x=18, y=304, 325×37) — 화면 탭으로 selected 토글 */}
       <View style={[styles.timerWrap, { top: adjustTop(304) }]}>
         <WorryTimer
           elapsedSec={elapsedSec}
           totalSec={totalSec}
+          selected={timerVisible}
           style={styles.timerSize}
         />
       </View>
@@ -453,6 +467,6 @@ export default function WorryTimeScreen({ navigation }: Props) {
           />
         </View>
       )}
-    </View>
+    </Pressable>
   );
 }

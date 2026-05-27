@@ -92,10 +92,10 @@ const FIGMA_RAW_SLOTS: FlowerPosition[] = [
 ];
 
 // ─── 시각 조정 (raw 보존, 변환만 튜닝) ─────────────────────
-// 현재: 변환 없이 figma raw 좌표 그대로 사용
-// (필요 시 SHIFT/SCALE 값만 조정해서 전체 layout 튜닝 가능)
-const VERTICAL_SHIFT = 0;  // 음수=위로, 양수=아래로 (화면 height 비율)
-const SPREAD_SCALE = 1.0;  // 1.0=원본, <1=center 쪽으로 모음(덜 퍼짐), >1=더 퍼짐
+// figma raw 좌표 거의 그대로 — MainButton 과 안 닿게 살짝(4dp) 위로만 시프트.
+//   -0.005 ≈ -4dp (800 기준)
+const VERTICAL_SHIFT = -0.005; // 음수=위로, 양수=아래로 (화면 height 비율)
+const SPREAD_SCALE = 1.0;      // 1.0=원본, <1=center 쪽으로 모음(덜 퍼짐), >1=더 퍼짐
 // 변환 기준점 (figma raw 좌표의 중앙)
 const CENTER_X = 0.5;
 const CENTER_Y = 0.73375;
