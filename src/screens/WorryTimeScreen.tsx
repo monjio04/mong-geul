@@ -38,6 +38,7 @@ import { AudioToggleIcon } from '../components/AudioToggleIcon';
 import { WorryTimer } from '../components/WorryTimer';
 import { Colors, Radii, useResponsive } from '../theme';
 import { playBgm, stopBgm, resetBgmSession } from '../audio/bgm';
+import { isNfcSession, playFrog5min, playFrogEnd } from '../audio/frog';
 import MainCharSvg from '../../assets/images/main_char.svg';
 import worryHintsData from '../../assets/worry_hints.json';
 
@@ -134,18 +135,38 @@ export default function WorryTimeScreen({ navigation }: Props) {
 
   // 타이머 종료 시 1회 진동 트리거를 위한 플래그
   const vibratedRef = useRef(false);
+  // 🐸 음원 — NFC 세션 때만 5분/끝 시점에 1회 재생 (중복 방지 ref)
+  const frog5minPlayedRef = useRef(false);
+  const frogEndPlayedRef = useRef(false);
 
-  // 1초마다 elapsedSec 갱신 + 타이머 종료 시 진동 (알림음 대신)
+  // 1초마다 elapsedSec 갱신 + 5분 남은 시점 / 종료 시점 음원
   useEffect(() => {
     if (!startedAt) return;
-    const tick = () => {
+    const totalSec = (profile?.focusMinutes ?? 20) * 60;
+    const tick = async () => {
       const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
       setElapsedSec(elapsed);
+
+      const remaining = totalSec - elapsed;
+      // 🐸 5분 남았을 때 — NFC 세션만, 1회만
+      if (
+        !frog5minPlayedRef.current &&
+        remaining <= 5 * 60 &&
+        remaining > 5 * 60 - 2 // 5분 ~ 4분 58초 사이 (1초 tick 놓침 방지)
+      ) {
+        frog5minPlayedRef.current = true;
+        if (await isNfcSession()) playFrog5min();
+      }
+      // 🐸 타이머 종료 시 — NFC 세션만, 1회만
+      if (!frogEndPlayedRef.current && elapsed >= totalSec) {
+        frogEndPlayedRef.current = true;
+        if (await isNfcSession()) playFrogEnd();
+      }
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [startedAt]);
+  }, [startedAt, profile?.focusMinutes]);
 
   // focusMinutes 경과 시 1회 진동 + BGM 세션 종료 — 알림음 없이 부드러운 종료 알림
   useEffect(() => {

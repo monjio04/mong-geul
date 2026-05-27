@@ -1,19 +1,25 @@
 import React, { useEffect } from 'react';
-import { LogBox, View } from 'react-native';
+import { LogBox, Linking, View } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NfcManager, { NfcEvents } from 'react-native-nfc-manager';
 import RootNavigator from './src/navigation/RootNavigator';
 import DebugPanel from './src/__dev__/DebugPanel';
 import { initNotifications, NOTIF_ACTION } from './src/notifications/scheduler';
 import { saveDayRecord, getTimerState, getUserProfile } from './src/storage/storage';
 import { pickFlowerPosition } from './src/timer/flowerCycle';
 import { resolveState, hasTodayCycleEnded } from './src/timer/stateMachine';
+import { handleNfcTagEntry } from './src/nfc/nfcEntry';
+import { GlobalToastHost } from './src/components/GlobalToast';
 import type { DayRecord, FlowerType } from './src/storage/types';
 import type { RootStackParamList } from './src/navigation/types';
+
+// NFC deep link URL — AndroidManifest 의 intent filter 와 매칭
+const NFC_DEEP_LINK_PREFIX = 'https://worrytime.app/start';
 
 // Expo Go는 SDK 53부터 푸시 알림(remote)을 지원하지 않음.
 // 우리는 로컬 알림(시간 예약)만 사용하므로 이 경고는 무시해도 안전.
@@ -124,6 +130,60 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
+  // ─── NFC 통합 ──────────────────────────────────────────
+  // Expo Go 에선 NFC native module 없으므로 isSupported() 가 false → no-op
+  // Development build (Android) 에서만 실제 작동
+  useEffect(() => {
+    let mounted = true;
+
+    const initNfc = async () => {
+      try {
+        const supported = await NfcManager.isSupported();
+        if (!supported || !mounted) return;
+        await NfcManager.start();
+        NfcManager.setEventListener(NfcEvents.DiscoverTag, () => {
+          handleNfcTagEntry().catch((e) => console.warn('[NFC] entry error:', e));
+          // 재등록 — 다음 태그 인식 위해
+          NfcManager.unregisterTagEvent().catch(() => {});
+          NfcManager.registerTagEvent().catch(() => {});
+        });
+        await NfcManager.registerTagEvent();
+        if (__DEV__) console.log('[NFC] foreground listener ready');
+      } catch (e) {
+        // Expo Go / NFC 미지원 기기 — 조용히 skip
+        if (__DEV__) console.log('[NFC] init skipped:', e instanceof Error ? e.message : e);
+      }
+    };
+    initNfc();
+
+    // Deep link (앱 종료/백그라운드에서 NFC 태그로 진입) handler
+    const handleUrl = ({ url }: { url: string }) => {
+      if (url.includes(NFC_DEEP_LINK_PREFIX)) {
+        // navigationRef ready 대기
+        const wait = () => {
+          if (navigationRef.isReady()) {
+            handleNfcTagEntry().catch((e) => console.warn('[NFC] deep link error:', e));
+          } else {
+            setTimeout(wait, 100);
+          }
+        };
+        wait();
+      }
+    };
+    const linkSub = Linking.addEventListener('url', handleUrl);
+    // 앱 종료 상태에서 NFC 로 열린 경우 — initial URL 1회 처리
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl({ url });
+    });
+
+    return () => {
+      mounted = false;
+      linkSub.remove();
+      NfcManager.unregisterTagEvent().catch(() => {});
+      NfcManager.setEventListener(NfcEvents.DiscoverTag, null);
+    };
+  }, []);
+
   // [DEV ONLY] 4월에 30개 더미 record seed (한 번만, idempotent)
   // - 위치: production 과 동일하게 pickFlowerPosition(date) — figma 615:1549 의 32 슬롯
   //   풀에서 month seed 기반 shuffle 로 day 별 unique slot 할당
@@ -176,6 +236,8 @@ export default function App() {
           <View style={{ flex: 1 }}>
             <RootNavigator />
             <DebugPanel />
+            {/* 전역 토스트 (NFC delayed 상태 안내 등) */}
+            <GlobalToastHost />
           </View>
         </NavigationContainer>
       </SafeAreaProvider>

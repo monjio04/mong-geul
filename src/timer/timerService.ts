@@ -32,6 +32,7 @@ import {
 } from './worryTimeWindow';
 import type { WorryTime } from './worryTimeWindow';
 import { pickFlowerType, pickFlowerPosition } from './flowerCycle';
+import { setNfcSession } from '../audio/frog';
 
 // ─── 타이머 시작 ─────────────────────────────────────────
 
@@ -130,6 +131,9 @@ export async function completeTimer(
   const { primaryNotifId, secondaryNotifId, lockNotifId } =
     await scheduleCycle(effectiveWorryTime, nextCycleStart);
 
+  // 5-1. NFC 세션 reset — 다음 세션은 다시 일반 진입으로 시작 (개구리 음원 안 남)
+  await setNfcSession(false);
+
   // 6. 타이머 상태 리셋 (잠금 상태로 설정)
   const nextPrimary = getNextPrimaryAlarm(nextCycleStart, effectiveWorryTime);
   const nextAlarmDate = getAlarmDateString(nextPrimary);
@@ -191,6 +195,9 @@ export async function lockCycle(
   const appliedProfile = await applyPendingProfile();
   const effectiveWorryTime = appliedProfile?.worryTime ?? worryTime;
   const nextCycleStart = getNextCycleStart(now);
+
+  // NFC 세션 reset — 잠금 시점에도 다음 세션은 일반 진입으로 시작
+  await setNfcSession(false);
   const { primaryNotifId, secondaryNotifId, lockNotifId } =
     await scheduleCycle(effectiveWorryTime, nextCycleStart);
 
