@@ -1,19 +1,24 @@
 import React, { useEffect } from 'react';
-import { LogBox, View } from 'react-native';
+import { LogBox, Linking, View } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { StatusBar } from 'expo-status-bar';
+import { useFonts } from 'expo-font';
 import * as Notifications from 'expo-notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import NfcManager, { NfcEvents } from 'react-native-nfc-manager';
 import RootNavigator from './src/navigation/RootNavigator';
 import DebugPanel from './src/__dev__/DebugPanel';
 import { initNotifications, NOTIF_ACTION } from './src/notifications/scheduler';
-import { saveDayRecord, getTimerState, getUserProfile } from './src/storage/storage';
-import { pickFlowerPosition } from './src/timer/flowerCycle';
+import { getTimerState, getUserProfile } from './src/storage/storage';
 import { resolveState, hasTodayCycleEnded } from './src/timer/stateMachine';
-import type { DayRecord, FlowerType } from './src/storage/types';
+import { handleNfcTagEntry } from './src/nfc/nfcEntry';
+import { GlobalToastHost } from './src/components/GlobalToast';
 import type { RootStackParamList } from './src/navigation/types';
+
+// NFC deep link URL — AndroidManifest 의 intent filter 와 매칭
+const NFC_DEEP_LINK_PREFIX = 'https://worrytime.app/start';
 
 // Expo Go는 SDK 53부터 푸시 알림(remote)을 지원하지 않음.
 // 우리는 로컬 알림(시간 예약)만 사용하므로 이 경고는 무시해도 안전.
@@ -98,6 +103,12 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
 }
 
 export default function App() {
+  // 커스텀 폰트 로드 — 캐릭터 말풍선 손글씨 (MemomentKkukkukk)
+  //   파일: assets/fonts/MemomentKkukkukk.ttf (key 와 파일명 일치 필요)
+  const [fontsLoaded] = useFonts({
+    MemomentKkukkukk: require('./assets/fonts/MemomentKkukkukk.ttf'),
+  });
+
   useEffect(() => {
     // 알림 핸들러 + Android 채널 + 액션 카테고리 셋업
     initNotifications().catch((e) =>
@@ -124,49 +135,86 @@ export default function App() {
     return () => sub.remove();
   }, []);
 
-  // [DEV ONLY] 4월에 30개 더미 record seed (한 번만, idempotent)
-  // - 위치: production 과 동일하게 pickFlowerPosition(date) — figma 615:1549 의 32 슬롯
-  //   풀에서 month seed 기반 shuffle 로 day 별 unique slot 할당
-  // - 색: 1~7 순환 후 shuffle → 같은 색 인접 회피
-  // - 모두 status='flower' (단순화)
+  // ─── NFC 통합 ──────────────────────────────────────────
+  // Expo Go 에선 NFC native module 없으므로 isSupported() 가 false → no-op
+  // Development build (Android) 에서만 실제 작동
+  useEffect(() => {
+    let mounted = true;
+
+    const initNfc = async () => {
+      try {
+        const supported = await NfcManager.isSupported();
+        if (!supported || !mounted) return;
+        await NfcManager.start();
+        NfcManager.setEventListener(NfcEvents.DiscoverTag, () => {
+          handleNfcTagEntry().catch((e) => console.warn('[NFC] entry error:', e));
+          // 재등록 — 다음 태그 인식 위해
+          NfcManager.unregisterTagEvent().catch(() => {});
+          NfcManager.registerTagEvent().catch(() => {});
+        });
+        await NfcManager.registerTagEvent();
+        if (__DEV__) console.log('[NFC] foreground listener ready');
+      } catch (e) {
+        // Expo Go / NFC 미지원 기기 — 조용히 skip
+        if (__DEV__) console.log('[NFC] init skipped:', e instanceof Error ? e.message : e);
+      }
+    };
+    initNfc();
+
+    // Deep link (앱 종료/백그라운드에서 NFC 태그로 진입) handler
+    const handleUrl = ({ url }: { url: string }) => {
+      if (url.includes(NFC_DEEP_LINK_PREFIX)) {
+        // navigationRef ready 대기
+        const wait = () => {
+          if (navigationRef.isReady()) {
+            handleNfcTagEntry().catch((e) => console.warn('[NFC] deep link error:', e));
+          } else {
+            setTimeout(wait, 100);
+          }
+        };
+        wait();
+      }
+    };
+    const linkSub = Linking.addEventListener('url', handleUrl);
+    // 앱 종료 상태에서 NFC 로 열린 경우 — initial URL 1회 처리
+    Linking.getInitialURL().then((url) => {
+      if (url) handleUrl({ url });
+    });
+
+    return () => {
+      mounted = false;
+      linkSub.remove();
+      NfcManager.unregisterTagEvent().catch(() => {});
+      NfcManager.setEventListener(NfcEvents.DiscoverTag, null);
+    };
+  }, []);
+
+  // [DEV ONLY] 이전에 seed 했던 4월 더미 꽃 record 일회성 정리
+  //   - 이전 'dev:aprilSeeded:v11' 시드 코드 제거 + 이미 저장된 4월 30개 record 삭제
+  //   - FLAG 로 한 번만 동작 (앱 재실행해도 재정리 안 함)
   useEffect(() => {
     if (!__DEV__) return;
     (async () => {
-      // v11: figma 615:1549 정확 32 슬롯 풀 + production 동일 로직 (shuffle)
-      const FLAG = 'dev:aprilSeeded:v11';
+      const FLAG = 'dev:aprilSeedCleared:v1';
       const already = await AsyncStorage.getItem(FLAG);
       if (already) return;
       const year = new Date().getFullYear();
-
-      // 30개 색 배열 — 1~7 순환 (각 4~5개), 그 후 shuffle
-      const colors: FlowerType[] = [];
-      for (let i = 0; i < 30; i++) {
-        colors.push((((i % 7) + 1) as FlowerType));
-      }
-      for (let i = colors.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [colors[i], colors[j]] = [colors[j], colors[i]];
-      }
-
+      const keys: string[] = [];
       for (let day = 1; day <= 30; day++) {
-        const dd = String(day).padStart(2, '0');
-        const dateStr = `${year}-04-${dd}`;
-        // production 과 동일 — month seed 기반 shuffle 에서 day 별 unique slot
-        const position = pickFlowerPosition(new Date(year, 3, day)); // month 0-indexed (3=4월)
-        const record: DayRecord = {
-          status: 'flower',
-          flowerType: colors[day - 1],
-          position,
-          completedAt: new Date(`${dateStr}T20:00:00`).toISOString(),
-          isDelayed: false,
-          isAdvanced: false,
-        };
-        await saveDayRecord(dateStr, record);
+        keys.push(`record:${year}-04-${String(day).padStart(2, '0')}`);
       }
+      await AsyncStorage.multiRemove(keys);
+      // 이전 seed FLAG 도 정리 (남아 있어봐야 의미 없음)
+      await AsyncStorage.removeItem('dev:aprilSeeded:v11');
       await AsyncStorage.setItem(FLAG, '1');
-      console.log(`[DEV] seeded 30 flower records for ${year}-04 (figma 32 slots, shuffled)`);
+      console.log(`[DEV] cleared 30 april dummy flower records for ${year}-04`);
     })();
   }, []);
+
+  // 폰트 로딩 완료 전엔 렌더 보류 (말풍선 손글씨 깜빡임 방지)
+  if (!fontsLoaded) {
+    return null;
+  }
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
@@ -176,6 +224,8 @@ export default function App() {
           <View style={{ flex: 1 }}>
             <RootNavigator />
             <DebugPanel />
+            {/* 전역 토스트 (NFC delayed 상태 안내 등) */}
+            <GlobalToastHost />
           </View>
         </NavigationContainer>
       </SafeAreaProvider>

@@ -36,8 +36,9 @@ import { Button, Text } from '../components/ui';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { AudioToggleIcon } from '../components/AudioToggleIcon';
 import { WorryTimer } from '../components/WorryTimer';
-import { Colors, Radii, useResponsive } from '../theme';
+import { Colors, Radii, useResponsive, Fonts } from '../theme';
 import { playBgm, stopBgm, resetBgmSession } from '../audio/bgm';
+import { isNfcSession, playFrogStart, playFrog5min, playFrogEnd } from '../audio/frog';
 import MainCharSvg from '../../assets/images/main_char.svg';
 import worryHintsData from '../../assets/worry_hints.json';
 
@@ -88,6 +89,10 @@ export default function WorryTimeScreen({ navigation }: Props) {
   // ended 상태에서는 WorryTimer 가 항상 표시하므로 이 state 와 무관
   const [timerVisible, setTimerVisible] = useState(false);
 
+  // 이번 마운트가 "새 세션 시작" 인지 "재진입(resume)" 인지 표시.
+  // 새 세션이면 시작 음원 재생, resume 이면 skip (이미 들었음).
+  const isFreshStartRef = useRef(false);
+
   // mount: profile 로드 + timer 시작 (없으면 fallback) + 실제 메모 로드
   useEffect(() => {
     (async () => {
@@ -108,10 +113,13 @@ export default function WorryTimeScreen({ navigation }: Props) {
         timerState = await getTimerState();
       }
 
+      // 이 시점의 startedAt 존재 여부 = "이번 마운트가 fresh 인지" 의 기준
+      const wasFresh = !timerState.startedAt;
       if (!timerState.startedAt) {
         await startTimer(p.focusMinutes);
         timerState = await getTimerState();
       }
+      isFreshStartRef.current = wasFresh;
       setStartedAt(timerState.startedAt);
 
       // 이번 사이클에 작성된 메모(addMemo로 저장된) 로드
@@ -134,18 +142,58 @@ export default function WorryTimeScreen({ navigation }: Props) {
 
   // 타이머 종료 시 1회 진동 트리거를 위한 플래그
   const vibratedRef = useRef(false);
+  // 🐸 음원 — NFC 세션 때만 시작/5분/끝 시점에 1회 재생 (중복 방지 ref)
+  const frogStartPlayedRef = useRef(false);
+  const frog5minPlayedRef = useRef(false);
+  const frogEndPlayedRef = useRef(false);
 
-  // 1초마다 elapsedSec 갱신 + 타이머 종료 시 진동 (알림음 대신)
+  // 🐸 시작 음원 + BGM 시작 순서 제어 플래그
+  //   - NFC 세션이면 시작 음원 끝까지 await → 그 뒤 BGM 시작
+  //   - 일반 진입이면 즉시 ready → BGM 바로 시작
+  const [startupAudioReady, setStartupAudioReady] = useState(false);
+
+  // 🐸 시작 음원 — startedAt 설정 직후 1회만, 끝나면 startupAudioReady=true
+  //   · NFC 세션 + fresh start 일 때만 재생 — resume(앱 강제종료 후 복귀) 시엔 skip
+  //   · resume 이면 즉시 ready → BGM 바로 시작
+  useEffect(() => {
+    if (!startedAt || frogStartPlayedRef.current) return;
+    frogStartPlayedRef.current = true;
+    (async () => {
+      if (isFreshStartRef.current && await isNfcSession()) {
+        await playFrogStart(); // 음원 끝까지 대기 (Promise resolves on didJustFinish)
+      }
+      setStartupAudioReady(true);
+    })();
+  }, [startedAt]);
+
+  // 1초마다 elapsedSec 갱신 + 5분 남은 시점 / 종료 시점 음원
   useEffect(() => {
     if (!startedAt) return;
-    const tick = () => {
+    const totalSec = (profile?.focusMinutes ?? 20) * 60;
+    const tick = async () => {
       const elapsed = Math.floor((Date.now() - new Date(startedAt).getTime()) / 1000);
       setElapsedSec(elapsed);
+
+      const remaining = totalSec - elapsed;
+      // 🐸 5분 남았을 때 — NFC 세션만, 1회만
+      if (
+        !frog5minPlayedRef.current &&
+        remaining <= 5 * 60 &&
+        remaining > 5 * 60 - 2 // 5분 ~ 4분 58초 사이 (1초 tick 놓침 방지)
+      ) {
+        frog5minPlayedRef.current = true;
+        if (await isNfcSession()) playFrog5min();
+      }
+      // 🐸 타이머 종료 시 — NFC 세션만, 1회만
+      if (!frogEndPlayedRef.current && elapsed >= totalSec) {
+        frogEndPlayedRef.current = true;
+        if (await isNfcSession()) playFrogEnd();
+      }
     };
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [startedAt]);
+  }, [startedAt, profile?.focusMinutes]);
 
   // focusMinutes 경과 시 1회 진동 + BGM 세션 종료 — 알림음 없이 부드러운 종료 알림
   useEffect(() => {
@@ -164,6 +212,7 @@ export default function WorryTimeScreen({ navigation }: Props) {
   //   - 화면 진입 + audioEnabled = true → 세션 트랙 재생 (첫 진입 시 랜덤 선택)
   //   - 토글 OFF → stopBgm() (트랙 선택은 유지 → 같은 트랙 재개 가능)
   //   - 토글 ON 다시 → 동일 트랙 처음부터 재생
+  //   - startupAudioReady=false 면 시작 음원 재생 대기 중 → BGM 보류
   useEffect(() => {
     if (!profile?.audioEnabled) {
       void stopBgm();
@@ -173,9 +222,12 @@ export default function WorryTimeScreen({ navigation }: Props) {
     const totalSec = profile.focusMinutes * 60;
     if (elapsedSec >= totalSec) return;
 
+    // 시작 음원(NFC 세션) 끝나기 전엔 BGM 보류
+    if (!startupAudioReady) return;
+
     void playBgm();
     // 이 effect 의 cleanup 은 toggle off 케이스에서만 의미 — unmount cleanup 은 아래 별도 effect 에서 처리
-  }, [profile?.audioEnabled, profile?.focusMinutes]); // elapsedSec 변경마다 재실행 방지
+  }, [profile?.audioEnabled, profile?.focusMinutes, startupAudioReady]); // elapsedSec 변경마다 재실행 방지
 
   // 화면 unmount 시 BGM 세션 완전 종료 (트랙 선택도 해제 → 다음 걱정타임 새 랜덤)
   useEffect(() => {
@@ -389,9 +441,13 @@ export default function WorryTimeScreen({ navigation }: Props) {
       <View style={[styles.speechWrap, { top: adjustTop(isTimerEnded ? 126 : 137) }]}>
         {isTimerEnded ? (
           <SpeechBubble>
-            <Text variant="sm" align="center" style={{ maxWidth: 170, width: 170 }}>
+            <Text
+              variant="sm"
+              align="center"
+              style={{ maxWidth: 170, width: 170, fontFamily: Fonts.handwriting }}
+            >
               {'오늘의 걱정타임 끝!\n아래 \''}
-              <Text variant="sm" color="mainGreen">작성 완료</Text>
+              <Text variant="sm" color="mainGreen" style={{ fontFamily: Fonts.handwriting }}>작성 완료</Text>
               {'\' 버튼을 눌러\n마무리해요 ☺️'}
             </Text>
           </SpeechBubble>

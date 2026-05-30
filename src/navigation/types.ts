@@ -28,7 +28,7 @@ export type RootStackParamList = {
   Settings: { autoOpenFocusPicker?: boolean } | undefined;
   NicknameChange: undefined; // 설정 → 닉네임 변경
   Copywrite: undefined;
-  NotWorryTime: undefined;   // "지금은 걱정타임이 아니에요" 바텀시트
+  NotWorryTime: { fromNfc?: boolean } | undefined;   // "지금은 걱정타임이 아니에요" 바텀시트 (fromNfc: NFC 태그 → 앞당기기 시 NFC 세션 표시)
   DelayPicker: undefined;    // 미루기 시간 picker (기존)
   DelayConfirm: undefined;   // "조금 이따 다시 만날까요?" — 2차 알림 액션 → 홈 위 모달
   DelaySet: {                // "HH:MM에 다시 만나요!" — 미루기 완료 후 모달
