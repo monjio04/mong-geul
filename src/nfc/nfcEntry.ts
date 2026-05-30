@@ -14,7 +14,7 @@
 
 import { resolveState, hasTodayCycleEnded } from '../timer/stateMachine';
 import { getUserProfile, getTimerState } from '../storage/storage';
-import { playFrogStart, setNfcSession } from '../audio/frog';
+import { setNfcSession } from '../audio/frog';
 import { emitGlobalToast } from '../components/GlobalToast';
 import { navigationRef } from '../../App';
 
@@ -63,17 +63,17 @@ export async function handleNfcTagEntry(): Promise<void> {
       return;
     }
 
-    // 3) 걱정타임 진행 — NFC 세션 표시 + 🐸 시작 + WorryTimeEntry
-    //   audioEnabled 체크 없음 — 개구리는 BGM 토글과 독립
+    // 3) 걱정타임 진행 — NFC 세션 표시만 + WorryTimeEntry
+    //   🐸 시작 음원은 WorryTimeScreen 마운트 시점에 재생 (진입/전환 화면이 아닌 본화면에서)
     if (state === 'active' || state === 'inProgress' || state === 'advanced') {
       await setNfcSession(true);
-      playFrogStart(); // await 안 함 — 음원 재생과 화면 전환 병렬
       navigationRef.navigate('WorryTimeEntry');
       return;
     }
 
-    // 4) idle — NotWorryTime 시트 (기존 재사용 — "지금 작성할래요" 가능)
-    navigationRef.navigate('NotWorryTime');
+    // 4) idle — NotWorryTime 시트 (기존 재사용 — "지금 작성할래요" → 앞당기기)
+    //    fromNfc:true 로 알려서, 시트의 "지금 작성할래요" 핸들러가 NFC 세션 켜도록
+    navigationRef.navigate('NotWorryTime', { fromNfc: true });
   } catch (e) {
     console.warn('[NFC] handleNfcTagEntry error:', e);
     // 오류 시 안전하게 홈으로

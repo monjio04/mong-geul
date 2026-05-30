@@ -65,19 +65,29 @@ export async function isNfcSession(): Promise<boolean> {
 
 // ─── 음원 재생 헬퍼 ────────────────────────────────────────
 
+// 음원이 끝나는 시점에 resolve 되는 Promise 반환 (호출자가 await 해서 다음 액션 순차화 가능).
+// 음원 파일 미준비 / 로드 실패 시엔 즉시 resolve — caller 흐름은 항상 진행.
 async function playSound(asset: unknown): Promise<void> {
   if (!asset) return; // 음원 파일 미준비 (require 주석) → no-op
-  try {
-    const { sound } = await Audio.Sound.createAsync(asset as never);
-    await sound.playAsync();
-    sound.setOnPlaybackStatusUpdate((status) => {
-      if (status.isLoaded && status.didJustFinish) {
-        sound.unloadAsync().catch(() => {});
-      }
-    });
-  } catch (e) {
-    console.warn('[frog] playback failed:', e);
-  }
+  return new Promise<void>((resolve) => {
+    Audio.Sound.createAsync(asset as never)
+      .then(({ sound }) => {
+        sound.setOnPlaybackStatusUpdate((status) => {
+          if (status.isLoaded && status.didJustFinish) {
+            sound.unloadAsync().catch(() => {});
+            resolve();
+          }
+        });
+        sound.playAsync().catch((e) => {
+          console.warn('[frog] play failed:', e);
+          resolve();
+        });
+      })
+      .catch((e) => {
+        console.warn('[frog] create failed:', e);
+        resolve();
+      });
+  });
 }
 
 export const playFrogStart = (): Promise<void> => playSound(FROG_START);

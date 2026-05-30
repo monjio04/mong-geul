@@ -4,11 +4,11 @@
  * 메모 입력 박스. 공백 제외 30자 제한 + 우측 카운터.
  *
  * 피그마 사양:
- *  - bg lightGray200 (#f2f2f2), radius 18
- *  - padding 15/15/16/15 (top/right/bottom/left), gap 10
- *  - 제목 "걱정 메모" — 16px medium black
- *  - TextInput — 16px regular black, multiline
- *  - 카운터 "n/30" — 11px regular darkGray, alignSelf flex-end
+ *  - bg lightGray200 (#f2f2f2), radius 18, w 315
+ *  - padding pt 20 / pr 15 / pb 16 / pl 15, gap 10
+ *  - 제목 "걱정 메모" — 16px medium black -0.32
+ *  - TextInput — 16px regular black -0.32, multiline
+ *  - 카운터 "n/30" — 11px regular darkGray -0.22, alignSelf flex-end
  */
 
 import React from 'react';
@@ -80,7 +80,8 @@ const styles = StyleSheet.create({
     minHeight: 130,
     backgroundColor: Colors.lightGray200,
     borderRadius: 18,
-    paddingTop: 15,
+    // figma 114:371 — pt 20 / pr 15 / pb 16 / pl 15
+    paddingTop: 20,
     paddingRight: 15,
     paddingBottom: 16,
     paddingLeft: 15,

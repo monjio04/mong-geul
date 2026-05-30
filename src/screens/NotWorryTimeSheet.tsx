@@ -19,12 +19,15 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { getTimerState, getUserProfile } from '../storage/storage';
 import { resolveState } from '../timer/stateMachine';
+import { setNfcSession } from '../audio/frog';
 import { Button, Card, Text } from '../components/ui';
 import { Colors, Spacing } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NotWorryTime'>;
 
-export default function NotWorryTimeSheet({ navigation }: Props) {
+export default function NotWorryTimeSheet({ navigation, route }: Props) {
+  // NFC 태그로 시트가 떴는지 — true 이고 "지금 작성할래요" 선택 시 NFC 세션으로 표시
+  const fromNfc = route.params?.fromNfc === true;
   // 더블탭 / 사이클 중복 호출 방지
   const advancingRef = useRef(false);
   const [advancing, setAdvancing] = useState(false);
@@ -53,6 +56,10 @@ export default function NotWorryTimeSheet({ navigation }: Props) {
         return;
       }
 
+      // NFC 태그로 진입한 경우만 NFC 세션 표시 → WorryTimeScreen 마운트 시 개구리 시작 음원 재생
+      if (fromNfc) {
+        await setNfcSession(true);
+      }
       // startAdvanced 호출은 실제 WorryTime mount 시점에 (idle 이면 자동 호출)
       // 여기서는 5초 카운트다운 화면으로만 이동 — exit 해도 부작용 없음
       navigation.replace('WorryTimeEntry');

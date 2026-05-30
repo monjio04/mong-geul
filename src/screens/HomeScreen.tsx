@@ -56,6 +56,9 @@ export default function HomeScreen({ navigation, route }: Props) {
   const [countdown, setCountdown] = useState<string>('00:00');
   const [now, setNow] = useState<Date>(new Date());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // 앱 콜드스타트 시 timer 가 진행 중이면 WorryTime 으로 자동 복귀 (한 번만)
+  // 예: 작성 중 앱 강제종료 → 재실행 → Home 거치지 않고 바로 걱정 화면으로 돌아감.
+  const restoredToWorryRef = useRef(false);
 
   // 걱정타임 종료 안내 모달 (figma 613:594)
   //   알림 탭 시 App.tsx 가 route.params.showWorryEnded=true 로 navigate
@@ -67,6 +70,18 @@ export default function HomeScreen({ navigation, route }: Props) {
       navigation.setParams({ showWorryEnded: undefined });
     }
   }, [route.params?.showWorryEnded, navigation]);
+
+  // 콜드스타트 / Home 첫 진입 시: 타이머 진행 중이면 WorryTime 으로 자동 복귀
+  //   - appState === 'inProgress' → 작성 중 (앱이 강제종료된 뒤 복귀 케이스)
+  //   - 한 번만 실행 (restoredToWorryRef 가 guard)
+  useEffect(() => {
+    if (restoredToWorryRef.current) return;
+    if (!profile) return;
+    if (appState === 'inProgress') {
+      restoredToWorryRef.current = true;
+      navigation.navigate('WorryTime');
+    }
+  }, [appState, profile, navigation]);
 
   // 현재 표시 월 (chevron으로 이동) — 기본: 오늘 기준 연/월
   const today = new Date();
