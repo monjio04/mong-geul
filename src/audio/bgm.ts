@@ -17,11 +17,12 @@
  * iOS 사일런트 모드 대응:
  *   - playsInSilentModeIOS: true 로 설정 → 무음 스위치 ON 일 때도 재생
  *
- * 사용처: WorryTimeScreen (걱정타임 진행 중)
+ * 사용처: WorryTimeScreen (걱정타임 진행 중), CopywriteScreen (필사)
  *   - mount + audioEnabled === true → playBgm()
  *   - audioEnabled toggle off       → stopBgm()  (트랙 유지)
  *   - audioEnabled toggle on        → playBgm()  (같은 트랙 재개)
  *   - 화면 unmount / 타이머 종료    → resetBgmSession() (다음 세션 위해 초기화)
+ *   (필사는 타이머가 없어 "타이머 종료" 분기만 없고 나머지는 동일)
  */
 
 import { Audio, type AVPlaybackSource } from 'expo-av';

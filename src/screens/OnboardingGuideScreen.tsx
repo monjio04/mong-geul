@@ -33,6 +33,7 @@ import { getUserProfile } from '../storage/storage';
 const BG_IMAGE = require('../../assets/images/background.png');
 const CHARACTER_LOTTIE = require('../../assets/lottie/character_idle.json');
 const SUB_CHAR = require('../../assets/images/sub_char.png');
+const SUB_JUMP_LOTTIE = require('../../assets/lottie/jump_sub.json');
 
 type Props = NativeStackScreenProps<RootStackParamList, 'OnboardingGuide'>;
 
@@ -70,7 +71,7 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
   //   - 버튼 top from screen bottom = pb(45) + (wrapperH 136 − pb 45 − btnH 72) / 2 + btnH 72
   //                                = 45 + 9.5 + 72 = 126.5
   //   - sub_char.bottom = 126.5 → sub_char 아래 가장자리가 버튼 top 과 정확히 맞물림
-  const MAIN_BTN_TOP_FROM_BOTTOM = 126.5;
+  const MAIN_BTN_TOP_FROM_BOTTOM = 105;
 
   // 버튼 위 위치: guide2 = 우측 (걱정 정리하기) 위, guide3 = 우측 (걱정 맡겨두기) 위
   // Home main-button x=20, w=320. 우측 박스 시작 = 20+132+8 = 160, 가운데 ≈ 160+90 = 250.
@@ -174,19 +175,41 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
         />
       </View>
 
-      {/* sub_char (꽃) — guide1/4: 캐릭터 머리 위 (top 앵커), guide2/3: 버튼 위 (bottom 앵커) */}
-      <Image
-        source={SUB_CHAR}
-        style={{
-          position: 'absolute',
-          left: subCharLeft,
-          width: wp(45),
-          height: hp(47),
-          top: subCharOnHead ? hp(250) : undefined,
-          bottom: subCharOnHead ? undefined : MAIN_BTN_TOP_FROM_BOTTOM,
-        }}
-        resizeMode="contain"
-      />
+      {/* sub_char — guide1/4: 캐릭터 머리 위 (PNG, top 앵커) / guide2/3: 버튼 위 (Lottie jump_sub, bottom 앵커)
+          위치/크기(45×47) 피그마 그대로, guide2/3 에서는 점프 애니메이션으로 표현 */}
+      {subCharOnHead ? (
+        <Image
+          source={SUB_CHAR}
+          style={{
+            position: 'absolute',
+            left: subCharLeft,
+            width: wp(45),
+            height: hp(47),
+            top: hp(250),
+          }}
+          resizeMode="contain"
+        />
+      ) : (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            // 박스가 커진 만큼 left 도 절반 보정 → 캐릭터 시각적 중심은 그대로
+            left: subCharLeft - wp((85 - 60) / 2),
+            width: wp(85),
+            height: hp(95),
+            bottom: MAIN_BTN_TOP_FROM_BOTTOM,
+          }}
+        >
+          <LottieView
+            source={SUB_JUMP_LOTTIE}
+            autoPlay
+            loop
+            style={{ width: '100%', height: '100%' }}
+            resizeMode="contain"
+          />
+        </View>
+      )}
 
       {/* 텍스트박스 */}
       <View

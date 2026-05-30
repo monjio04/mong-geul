@@ -28,16 +28,20 @@ import LottieView from 'lottie-react-native';
 import { Ionicons } from '@expo/vector-icons';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
-import { getUserProfile, getTimerState, getMonthRecords } from '../storage/storage';
+import {
+  getUserProfile, getTimerState, getMonthRecords,
+  getCycleMemos, MAX_MEMOS_PER_CYCLE,
+} from '../storage/storage';
 import type { UserProfile, WorkerState, DayRecord } from '../storage/types';
 import { resolveState, hasTodayCycleEnded } from '../timer/stateMachine';
 import { getNextPrimaryAlarm, getNextCycleStart } from '../timer/worryTimeWindow';
 import { MainButton } from '../components/MainButton';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { FlowerGarden } from '../components/FlowerGarden';
+import { emitGlobalToast } from '../components/GlobalToast';
 import { navigationRef } from '../../App';
 import { Button, Card, Text } from '../components/ui';
-import { Colors } from '../theme';
+import { Colors, Fonts } from '../theme';
 import SettingsIcon from '../../assets/icons/settings.svg';
 const BG_IMAGE = require('../../assets/images/background.png');
 const IDLE_FLOWER = require('../../assets/lottie/idle_flower.json');
@@ -150,8 +154,18 @@ export default function HomeScreen({ navigation, route }: Props) {
 
   const headerDate = `${displayedMonth.year}.${String(displayedMonth.month).padStart(2, '0')}`;
 
+  // 꽃밭 표시 범위: 기록은 영구 저장하되, 꽃밭에서는 최근 1년(이번 달 포함 12개월)만 열람.
+  // 미래 달 / 1년 초과 과거로는 이동 차단.
+  const monthIndex = (y: number, mo: number) => y * 12 + (mo - 1);
+  const currentMonthIdx = monthIndex(today.getFullYear(), today.getMonth() + 1);
+  const displayedMonthIdx = monthIndex(displayedMonth.year, displayedMonth.month);
+  const oldestMonthIdx = currentMonthIdx - 11; // 이번 달 포함 12개월
+  const canGoPrev = displayedMonthIdx > oldestMonthIdx;
+  const canGoNext = displayedMonthIdx < currentMonthIdx;
+
   // 월별 꽃밭 네비게이션
   const handlePrevMonth = () => {
+    if (!canGoPrev) return;
     setDisplayedMonth((m) => {
       const month = m.month - 1;
       if (month < 1) return { year: m.year - 1, month: 12 };
@@ -159,6 +173,7 @@ export default function HomeScreen({ navigation, route }: Props) {
     });
   };
   const handleNextMonth = () => {
+    if (!canGoNext) return;
     setDisplayedMonth((m) => {
       const month = m.month + 1;
       if (month > 12) return { year: m.year + 1, month: 1 };
@@ -183,16 +198,18 @@ export default function HomeScreen({ navigation, route }: Props) {
         <View style={styles.headerCenter}>
           <TouchableOpacity
             onPress={handlePrevMonth}
+            disabled={!canGoPrev}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 4 }}
           >
-            <Ionicons name="chevron-back" size={18} color="#000" />
+            <Ionicons name="chevron-back" size={18} color={canGoPrev ? '#000' : '#ccc'} />
           </TouchableOpacity>
           <Text style={styles.headerDate}>{headerDate}</Text>
           <TouchableOpacity
             onPress={handleNextMonth}
+            disabled={!canGoNext}
             hitSlop={{ top: 10, bottom: 10, left: 4, right: 10 }}
           >
-            <Ionicons name="chevron-forward" size={18} color="#000" />
+            <Ionicons name="chevron-forward" size={18} color={canGoNext ? '#000' : '#ccc'} />
           </TouchableOpacity>
         </View>
         <TouchableOpacity
@@ -263,7 +280,15 @@ export default function HomeScreen({ navigation, route }: Props) {
           onPressRight={
             isActive
               ? () => navigation.navigate('WorryTimeEntry')  // 5초 카운트다운 후 WorryTime
-              : () => navigation.navigate('Memo')
+              : async () => {
+                  // 사이클 메모 100개 초과면 메모 화면 진입 X → 토스트 (figma 818:906/930)
+                  const memos = await getCycleMemos();
+                  if (memos.length >= MAX_MEMOS_PER_CYCLE) {
+                    emitGlobalToast('하루에 100개까지만 작성할 수 있어요.', 'warning');
+                    return;
+                  }
+                  navigation.navigate('Memo');
+                }
           }
         />
       </View>
@@ -420,10 +445,13 @@ const styles = StyleSheet.create({
   },
   bubbleText: {
     lineHeight: 16, // 12 * 1.3
+    // figma 301:5876 — 말풍선 손글씨 (nested Text 도 상속)
+    fontFamily: Fonts.handwriting,
   },
   bubbleHighlight: {
     color: Colors.mainGreen,
     fontWeight: '600',
+    fontFamily: Fonts.handwriting,
   },
 
   // main_char (figma 291:2006 left=82 top=342 196×207, 360×800 캔버스)

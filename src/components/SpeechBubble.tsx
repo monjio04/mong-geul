@@ -26,7 +26,7 @@
 import React from 'react';
 import { View, StyleSheet, type ViewStyle, type StyleProp } from 'react-native';
 import { Text } from './ui/Text';
-import { Colors, Spacing, Radii } from '../theme';
+import { Colors, Spacing, Radii, Fonts } from '../theme';
 
 export interface SpeechBubbleProps {
   /** 단순 텍스트 모드 — children 미지정 시 표시 */
@@ -99,6 +99,8 @@ const styles = StyleSheet.create({
   bubbleText: {
     maxWidth: 170,
     width: 170,
+    // figma 301:5876 — 말풍선 손글씨 (MemomentKkukkukk)
+    fontFamily: Fonts.handwriting,
   },
   tailLarge: {
     width: 9,

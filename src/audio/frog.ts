@@ -25,13 +25,9 @@ import { Audio } from 'expo-av';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 // ─── 음원 자산 ─────────────────────────────────────────────
-// 디자이너/사운드 제작 대기 — 파일 받으면 require 주석 해제
-// const FROG_START = require('../../assets/sounds/frog_start.mp3'); // "준비해볼까요?"
-// const FROG_5MIN  = require('../../assets/sounds/frog_5min.mp3');  // "남은 시간동안 천천히 생각해봐요"
-// const FROG_END   = require('../../assets/sounds/frog_end.mp3');   // "끝났어요. 고민을 내려놓아요"
-const FROG_START: unknown = null;
-const FROG_5MIN: unknown = null;
-const FROG_END: unknown = null;
+const FROG_START = require('../../assets/sounds/frog_start.mp3'); // "준비해볼까요?"
+const FROG_5MIN  = require('../../assets/sounds/frog_5min.mp3');  // "남은 시간동안 천천히 생각해봐요"
+const FROG_END   = require('../../assets/sounds/frog_end.mp3');   // "끝났어요. 고민을 내려놓아요"
 
 // ─── NFC 세션 플래그 ───────────────────────────────────────
 

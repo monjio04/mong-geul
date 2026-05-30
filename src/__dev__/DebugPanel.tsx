@@ -11,9 +11,12 @@ import {
   View, Text, StyleSheet, TouchableOpacity,
   ScrollView, Alert,
 } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { clearAllData, dumpAllData, getTimerState, getUserProfile } from '../storage/storage';
+import { STORAGE_KEYS } from '../storage/keys';
 import { getAllScheduled, cancelAllScheduled } from '../notifications/scheduler';
 import { resolveState } from '../timer/stateMachine';
+import { applyDelay } from '../timer/timerService';
 
 export default function DebugPanel() {
   const [expanded, setExpanded] = useState(false);
@@ -53,6 +56,49 @@ export default function DebugPanel() {
       return `• ${n.content.title} @ ${dateStr}`;
     }).join('\n');
     appendLog(`예약된 알림 (${scheduled.length}개):\n${info}`);
+  };
+
+  // 메모 100개 시드 (warning 토스트 테스트용)
+  //   - 사이클 메모 배열에 100개 push → 다음 addMemo 시도 시 MAX_MEMOS_PER_CYCLE 초과 throw
+  //   - MemoScreen catch 가 emitGlobalToast(..., 'warning') 호출
+  const seedMemos100 = async () => {
+    const now = Date.now();
+    const memos = Array.from({ length: 100 }, (_, i) => ({
+      text: `[테스트] 메모 ${i + 1}`,
+      // 1분 간격으로 과거→현재 (UI 시간 표시 자연스럽게)
+      createdAt: new Date(now - (99 - i) * 60_000).toISOString(),
+    }));
+    await AsyncStorage.setItem(STORAGE_KEYS.MEMO_CURRENT, JSON.stringify(memos));
+    appendLog('메모 100개 시드 완료.\n메모 작성 → "작성 완료" 시도 시 warning 토스트 노출.');
+  };
+
+  // 메모 비우기 — 시드 되돌리기용
+  const clearMemos = async () => {
+    await AsyncStorage.removeItem(STORAGE_KEYS.MEMO_CURRENT);
+    appendLog('메모 초기화 완료.');
+  };
+
+  // 미루기 1분 — applyDelay(now+1min)
+  //   · 사이클 알림(1·2차·잠금) 취소 + 1분 후 재알림 + 31분 후 미루기 잠금 예약
+  //   · 호출 직후 state='delayed' → 1분 후 'active' → 31분 후 'locked' (state machine 자동 전이)
+  //   · 'active' 외 상태에서도 실행은 됨 (테스트 편의), 단 의미적으로는 active 분기 검증용
+  const handleDelay1Min = async () => {
+    const profile = await getUserProfile();
+    if (!profile) {
+      appendLog('프로필 없음 — 온보딩 먼저.');
+      return;
+    }
+    const timerState = await getTimerState();
+    const state = resolveState(timerState, new Date(), profile.worryTime);
+    const delayedUntil = new Date(Date.now() + 60 * 1000);
+    try {
+      await applyDelay(delayedUntil);
+      appendLog(
+        `미루기 1분 실행 (직전 state=${state}) → ${delayedUntil.toLocaleTimeString()} 재알림 예약\n잠금 시각: ${new Date(delayedUntil.getTime() + 30 * 60 * 1000).toLocaleTimeString()}`,
+      );
+    } catch (e) {
+      appendLog(`미루기 실패: ${e instanceof Error ? e.message : String(e)}`);
+    }
   };
 
   const handleClearAll = () => {
@@ -106,6 +152,9 @@ export default function DebugPanel() {
         <DebugButton label="Storage" onPress={showStorageState} />
         <DebugButton label="상태" onPress={showTimerState} />
         <DebugButton label="알림 목록" onPress={showScheduled} />
+        <DebugButton label="메모 100개" onPress={seedMemos100} color="#16AF5D" />
+        <DebugButton label="메모 비우기" onPress={clearMemos} color="#7B8794" />
+        <DebugButton label="미루기 1분" onPress={handleDelay1Min} color="#F5A623" />
         <DebugButton label="전체 초기화" onPress={handleClearAll} color="#E53935" />
       </View>
       <ScrollView style={styles.log}>

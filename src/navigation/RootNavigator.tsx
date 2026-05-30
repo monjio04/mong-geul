@@ -19,12 +19,17 @@ import WorryCheckInSheet from '../screens/WorryCheckInSheet';
 import OnboardingGuideScreen from '../screens/OnboardingGuideScreen';
 import WorryTimeEntryScreen from '../screens/WorryTimeEntryScreen';
 import FlowerBloomScreen from '../screens/FlowerBloomScreen';
+import SplashScreen from '../screens/SplashScreen';
 import { isOnboardingDone, initSchema } from '../storage/storage';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// 스플래시 최소 표시 시간 (ms) — 캐릭터 인사 모션이 자연스럽게 보이도록 약 4초
+const SPLASH_MIN_MS = 4000;
+
 export default function RootNavigator() {
   const [initialRoute, setInitialRoute] = useState<'Onboarding' | 'Home' | null>(null);
+  const [splashMinPassed, setSplashMinPassed] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -32,9 +37,13 @@ export default function RootNavigator() {
       const done = await isOnboardingDone();
       setInitialRoute(done ? 'Home' : 'Onboarding');
     })();
+    // 초기화가 빨라도 최소 SPLASH_MIN_MS 동안 스플래시 유지
+    const t = setTimeout(() => setSplashMinPassed(true), SPLASH_MIN_MS);
+    return () => clearTimeout(t);
   }, []);
 
-  if (!initialRoute) return null; // 스플래시 대체
+  // 초기화 미완료 또는 최소 표시 시간 전 → 스플래시 (피그마 804:807)
+  if (!initialRoute || !splashMinPassed) return <SplashScreen />;
 
   return (
     <Stack.Navigator
