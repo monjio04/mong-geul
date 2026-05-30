@@ -1,9 +1,9 @@
 /**
- * BottomButton — 피그마 "bottom" (677:768) wrapper 사양.
+ * BottomButton — 피그마 "bottom" (677:768 / 844:2803) wrapper 사양.
  *
  * 피그마 구조:
  *   bottom (677:768) — items-start
- *   └─ bottom (679:852) — w:360, h:106, pt:10, pb:45, px:20
+ *   └─ bottom (679:852) — w:360, pt:10, pb:60, px:20
  *      └─ BottomButton (primary, w:full, py:19, rounded:16) — h ≈ 56
  *
  * 사용처: 화면 하단 CTA — "다음", "완료", "작성 완료" 등.
@@ -14,7 +14,7 @@
  *   - 화면 하단에 absolute fixed.
  *   - 좌우 20dp 패딩 → 내부 버튼 w:full.
  *   - 상단 10dp 패딩 (콘텐츠와의 안전 마진).
- *   - 하단 45dp 패딩 — figma 사양 (네비게이션 바 위로 띄우는 의도 포함).
+ *   - 하단 60dp 패딩 — figma 844:2803 변경 (이전 45 → 60, 네비바 안전 여유 ↑).
  *   - 내부 버튼은 공용 Button 컴포넌트 (variant primary, size lg, full width).
  *
  * 사용 예:
@@ -50,9 +50,9 @@ export function BottomButton({
       style={[
         styles.container,
         {
-          // figma 677:768 — pt:10, pb:45, px:20
+          // figma 844:2803 — pt:10, pb:60, px:20
           paddingTop: hp(10),
-          paddingBottom: hp(45),
+          paddingBottom: hp(60),
           paddingHorizontal: wp(20),
           bottom: bottomOffset,
         },
