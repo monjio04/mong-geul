@@ -6,7 +6,7 @@
  * 표시:
  *  - MiddleMessage (y=226)
  *      title: "걱정은 우리가 맡아둘게요."
- *      subtitle: "걱정 타임에 다시 만나요"
+ *      subtitle: "적어둔 걱정은 걱정타임에 꺼내볼 수 있어요.\n오늘이 지나면 메모도 함께 사라져요." (figma 62:1404)
  *  - 캐릭터+박스 일러스트 (onboarding_character_box.png, x=79 y=361 228×228)
  *
  * 흐름: 3초 자동 후 Home reset (Reward 패턴 동일)
@@ -46,7 +46,9 @@ export default function MemoCompleteScreen({ navigation }: Props) {
       <View style={[styles.messageWrap, { top: messageTop }]}>
         <MiddleMessage
           title="걱정은 우리가 맡아둘게요."
-          subtitle="걱정 타임에 다시 만나요"
+          subtitle={'적어둔 걱정은 걱정타임에 꺼내볼 수 있어요.\n오늘이 지나면 메모도 함께 사라져요.'}
+          // figma 62:1404 — subtitle 각 줄이 길어(~283dp) 기본 maxWidth 270 초과 → 넓혀 한 줄 유지
+          style={styles.message}
         />
       </View>
 
@@ -73,5 +75,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     alignItems: 'center',
+  },
+  // subtitle 2줄이 각각 한 줄 유지되도록 maxWidth 확장 (figma nowrap 매칭)
+  message: {
+    maxWidth: 330,
   },
 });

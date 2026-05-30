@@ -18,7 +18,6 @@ import {
   StyleSheet,
   TouchableOpacity,
   Platform,
-  Alert,
   Animated,
   Keyboard,
 } from 'react-native';
@@ -27,6 +26,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { BottomButton, Text } from '../components/ui';
 import { MemoMemo } from '../components/MemoMemo';
+import { emitGlobalToast } from '../components/GlobalToast';
 import { Colors, useResponsive } from '../theme';
 import { addMemo } from '../storage/storage';
 import ExitIcon from '../../assets/icons/exit.svg';
@@ -73,8 +73,14 @@ export default function MemoScreen({ navigation }: Props) {
       await addMemo(text.trim());
       navigation.replace('MemoComplete');
     } catch (e) {
-      console.error('[MemoScreen] addMemo 오류:', e);
-      Alert.alert('저장 실패', '잠시 후 다시 시도해 주세요.');
+      // 하루 100개 상한 도달 → figma 818:906 warning 토스트
+      const isLimit = e instanceof Error && e.message.includes('메모는 최대');
+      if (isLimit) {
+        emitGlobalToast('하루에 100개까지만 작성할 수 있어요.', 'warning');
+      } else {
+        console.error('[MemoScreen] addMemo 오류:', e);
+        emitGlobalToast('잠시 후 다시 시도해 주세요.', 'warning');
+      }
       setSubmitting(false);
     }
   };

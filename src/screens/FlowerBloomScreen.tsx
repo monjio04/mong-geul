@@ -7,7 +7,7 @@
  *  - flower : Lottie 모션 (FLOWER_SHOW[type]) + #cbe691 연두 원
  *      제목 "오늘의 꽃이 피었어요" (오늘의 꽃 = #f1f2ac)
  *      서브 "걱정을 정리한 시간이 작은 꽃으로 남았어요\n다이어리에 같은 꽃을 남겨 마무리해요"
- *  - sprout : 정적 SVG (f-sprout.svg) + #f4f5c7 연노랑 원
+ *  - sprout : Lottie 모션 (SPROUT_SHOW, "Show Seed") + #f4f5c7 연노랑 원
  *      제목 "오늘의 새싹이 피었어요" (오늘의 새싹 = #8ebf46)
  *      서브 "걱정을 정리한 시간이 작은 새싹으로 남았어요\n다이어리에 같은 새싹을 남겨 마무리해요"
  *
@@ -18,8 +18,7 @@
  *  - 원 185×185 rounded 999
  *
  * 탭 동작:
- *  - flower: lottie onAnimationFinish → tappable → tap → goBack
- *  - sprout: 마운트 후 800ms → tappable → tap → goBack (정적 SVG, animation 없음)
+ *  - flower/sprout 모두 Lottie onAnimationFinish → tappable → tap → goBack
  */
 
 import React, { useEffect, useRef, useState } from 'react';
@@ -30,7 +29,6 @@ import type { RootStackParamList } from '../navigation/types';
 import { useResponsive } from '../theme';
 import type { FlowerType } from '../storage/types';
 import { MiddleMessage } from '../components/MiddleMessage';
-import FSproutIcon from '../../assets/icons/f-sprout.svg';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'FlowerBloom'>;
 
@@ -43,11 +41,25 @@ const FLOWER_SHOW: Record<FlowerType, ReturnType<typeof require>> = {
   4: require('../../assets/lottie/flowers/flower_show_4.json'),
   5: require('../../assets/lottie/flowers/flower_show_5.json'),
   6: require('../../assets/lottie/flowers/flower_show_6.json'),
-  7: require('../../assets/lottie/flowers/seed_show.json'), // ← 기존 flower7 자리에 seed 사용
+  7: require('../../assets/lottie/flowers/seed_show.json'), // ← 기존 flower7 자리에 seed 사용 (Show Flower 77)
 };
 
-const ANIM_START = 90;
-const ANIM_END = 108;
+const SPROUT_SHOW = require('../../assets/lottie/flowers/sprout_show.json'); // "Show Seed"
+
+// bloom 키프레임 범위 — Lottie 파일마다 다름.
+//  - flower 1~6 (구버전 자산): 90~108
+//  - flower 7  (Show Flower 77, 새 자산): 245~260 (앞부분은 idle 흔들림)
+//  - sprout    (Show Seed, 새 자산):       120~133
+const FLOWER_RANGE: Record<FlowerType, [number, number]> = {
+  1: [90, 108],
+  2: [90, 108],
+  3: [90, 108],
+  4: [90, 108],
+  5: [90, 108],
+  6: [90, 108],
+  7: [245, 260],
+};
+const SPROUT_RANGE: [number, number] = [120, 133];
 
 export default function FlowerBloomScreen({ route, navigation }: Props) {
   const { wp, hp } = useResponsive();
@@ -58,15 +70,12 @@ export default function FlowerBloomScreen({ route, navigation }: Props) {
   const [tappable, setTappable] = useState(false);
 
   useEffect(() => {
-    if (isSprout) {
-      // 정적 SVG — 짧은 딜레이 후 탭 활성화
-      const t = setTimeout(() => setTappable(true), 800);
-      return () => clearTimeout(t);
-    } else {
-      // Lottie 모션 — 끝나면 onAnimationFinish 가 tappable 켬
-      lottieRef.current?.play(ANIM_START, ANIM_END);
-    }
-  }, [isSprout]);
+    // sprout / flower 모두 Lottie — 자산별 bloom 키프레임 범위로 play
+    const [s, e] = isSprout
+      ? SPROUT_RANGE
+      : FLOWER_RANGE[(flowerType ?? 1) as FlowerType];
+    lottieRef.current?.play(s, e);
+  }, [isSprout, flowerType]);
 
   const handlePress = () => {
     if (!tappable) return;
@@ -131,31 +140,22 @@ export default function FlowerBloomScreen({ route, navigation }: Props) {
             },
           ]}
         >
-          {isSprout ? (
-            // 새싹 — figma 649:748/765: 새싹 100×69.734 in 원 185 = 54% 폭 (SVG 라 padding 없음)
-            <FSproutIcon
-              width={wp(100)}
-              height={wp(100) * (69.734 / 100)}
-            />
-          ) : (
-            // 꽃 — Lottie 모션
-            // figma 533:620 / 615:679: 꽃 100×87 in 원 185 = 54% 차지
-            // lottie 내부 분석:
-            //   canvas 1080×1080, shape intrinsic 21.5×17.9, 최대 scale 2000%
-            //   → 최종 시각 flower = canvas 의 39.8%
-            // 시각 100dp 매칭: container = 100 / 0.398 ≈ 251dp.
-            // 정사각 container 로 잡아 1:1 lottie 가 가로 손실 없이 풀스케일 동작.
-            // (container 가 원(185) 보다 커도 원의 overflow:hidden 으로 자연스럽게 클립)
-            <LottieView
-              ref={lottieRef}
-              source={FLOWER_SHOW[(flowerType ?? 1) as FlowerType]}
-              autoPlay={false}
-              loop={false}
-              onAnimationFinish={handleAnimationFinish}
-              style={{ width: wp(251), height: wp(251) }}
-              resizeMode="contain"
-            />
-          )}
+          {/* flower/sprout 모두 Lottie. 자산별 canvas 정사각(1080×1080) container 사용:
+              - flower: wp(251) — 원(185) 보다 큼, overflow:hidden 으로 자연 클립
+              - sprout: wp(185) — 새싹 visible 이 canvas 60%↑ 차지 → 원 사이즈와 동일하게
+                                  잡아 하단 클리핑 방지 */}
+          <LottieView
+            ref={lottieRef}
+            source={isSprout ? SPROUT_SHOW : FLOWER_SHOW[(flowerType ?? 1) as FlowerType]}
+            autoPlay={false}
+            loop={false}
+            onAnimationFinish={handleAnimationFinish}
+            style={{
+              width: wp(isSprout ? 185 : 251),
+              height: wp(isSprout ? 185 : 251),
+            }}
+            resizeMode="contain"
+          />
         </View>
       </View>
     </Pressable>

@@ -63,7 +63,7 @@ export function initNotificationHandler() {
 }
 
 // ─── 알림 카테고리 (액션 버튼) ──────────────────────────────
-// 2차 알림에 부착하는 액션 버튼 2개:
+// 2차 알림 + 미루기 재알림에 부착하는 액션 버튼 2개:
 //  - DELAY: "걱정타임 미루기" → App.tsx 핸들러가 홈 + DelayConfirmSheet 모달
 //  - START_NOW: "지금 작성하기" → App.tsx 핸들러가 홈 (active 상태)
 
@@ -174,6 +174,7 @@ export async function scheduleDelayed(delayedUntil: Date): Promise<DelaySchedule
     title: `${nickname}님, 미뤄둔 걱정타임이에요`,
     body: '지금 걱정을 꺼내볼 시간이에요.',
     data: { type: NOTIF_TYPE.DELAYED as string },
+    categoryIdentifier: NOTIF_CATEGORY.WORRY_PROMPT, // "걱정타임 미루기" / "지금 작성하기"
   });
 
   return {

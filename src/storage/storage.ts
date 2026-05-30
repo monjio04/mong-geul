@@ -168,9 +168,15 @@ export async function getCycleMemos(): Promise<MemoEntry[]> {
   return (await getItem<MemoEntry[]>(STORAGE_KEYS.MEMO_CURRENT)) ?? [];
 }
 
+// 한 사이클(걱정타임)에 쌓을 수 있는 메모 최대 개수 — 무한 누적 방지.
+export const MAX_MEMOS_PER_CYCLE = 100;
+
 export async function addMemo(text: string): Promise<void> {
   if (!text.trim()) throw new Error('빈 메모는 저장할 수 없습니다');
   const memos = await getCycleMemos();
+  if (memos.length >= MAX_MEMOS_PER_CYCLE) {
+    throw new Error(`메모는 최대 ${MAX_MEMOS_PER_CYCLE}개까지 저장할 수 있어요`);
+  }
   const newEntry: MemoEntry = {
     text: text.trim(),
     createdAt: new Date().toISOString(),

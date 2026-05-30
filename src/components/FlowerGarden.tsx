@@ -6,17 +6,16 @@
  * 각 record 가 status='flower'/'sprout' + position 을 가지면 그 위치(화면 비율)에
  * idle 자산을 absolute 로 배치. status='empty' 면 무시.
  *
- * 자산 (사용자 요청 — flower7 ↔ seed swap):
+ * 자산 (사용자 요청 — flower7 ↔ seed swap, sprout 도 Lottie 화):
  *  - flower 1~6 → flower_idle_n.json (Lottie)
- *  - flower 7   → seed_idle.json     (Lottie — 기존 seed/싹 모션)
- *  - sprout     → f-sprout.svg       (정적 SVG)
+ *  - flower 7   → seed_idle.json     (Lottie — "idle flower 77")
+ *  - sprout     → sprout_idle.json   (Lottie — "Idle Seed", 기존 f-sprout.svg 대체)
  */
 
 import React from 'react';
 import { View, StyleSheet, useWindowDimensions } from 'react-native';
 import LottieView from 'lottie-react-native';
 import type { DayRecord, FlowerType } from '../storage/types';
-import FSproutIcon from '../../assets/icons/f-sprout.svg';
 
 interface FlowerGardenProps {
   records: Record<string, DayRecord>;
@@ -31,6 +30,8 @@ const FLOWER_IDLE: Record<FlowerType, ReturnType<typeof require>> = {
   6: require('../../assets/lottie/flowers/flower_idle_6.json'),
   7: require('../../assets/lottie/flowers/seed_idle.json'), // ← 기존 flower7 자리에 seed 사용
 };
+
+const SPROUT_IDLE = require('../../assets/lottie/flowers/sprout_idle.json');
 
 // 꽃 한 송이 사이즈 — figma 18dp는 너무 작아 가시성 위해 키움
 // 38dp ≈ 10.5% — Lottie 디테일 보이면서 조밀 영역도 덜 겹침
@@ -48,12 +49,10 @@ const FLOWER_SIZE_SCALE: Record<FlowerType, number> = {
   7: 0.75, // seed(싹) lottie — sprout 와 동일 비율로 살짝 축소
 };
 
-// 새싹(sprout) SVG 사이즈 — viewBox 100×74 → 가로 기준 비율
-const SPROUT_W = 100;
-const SPROUT_H = 74;
-
-// 새싹 상대 스케일 — figma 615:1549 sprout(18×12.55)이 꽃(18×16~18)보다 작은 비율 반영
-const SPROUT_SIZE_SCALE = 0.75;
+// 새싹 상대 스케일 — Lottie 캔버스는 1080×1080 정사각, container 도 정사각.
+// 새싹 자산 visible 영역이 캔버스의 ~40% (꽃 자산은 ~49%) 라서, 시각적으로 꽃과
+// 가로폭을 맞추려면 scale 을 1.25 정도로 보정 (≈ 49/40). 세로는 새싹 특성상 더 길어짐.
+const SPROUT_SIZE_SCALE = 1.4;
 
 export function FlowerGarden({ records }: FlowerGardenProps) {
   const { width, height } = useWindowDimensions();
@@ -88,30 +87,11 @@ export function FlowerGarden({ records }: FlowerGardenProps) {
             : 1.0;
         const itemSize = size * scale;
         const left = (r.position?.x ?? 0.5) * width - itemSize / 2;
-        // sprout 는 SVG height 비율 적용 (100×74 → height 74%)
-        const itemHeight = isSprout ? itemSize * (SPROUT_H / SPROUT_W) : itemSize;
-        const top = (r.position?.y ?? 0.85) * height - itemHeight / 2;
+        // 모든 자산이 1080×1080 정사각 Lottie → container 도 정사각
+        const top = (r.position?.y ?? 0.85) * height - itemSize / 2;
 
-        if (isSprout) {
-          // 새싹 — figma 사용자 제공 f-sprout.svg (정적)
-          return (
-            <View
-              key={date}
-              style={{
-                position: 'absolute',
-                left,
-                top,
-                width: itemSize,
-                height: itemHeight,
-              }}
-            >
-              <FSproutIcon width={itemSize} height={itemHeight} />
-            </View>
-          );
-        }
-
-        // flower 1~7 — Lottie idle
-        const src = FLOWER_IDLE[r.flowerType ?? 1];
+        // flower 1~7 또는 sprout — Lottie idle (정사각 container)
+        const src = isSprout ? SPROUT_IDLE : FLOWER_IDLE[r.flowerType ?? 1];
         return (
           <LottieView
             key={date}

@@ -33,6 +33,7 @@ import { resolveState } from '../timer/stateMachine';
 import { BottomButton, Text } from '../components/ui';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { AudioToggleIcon } from '../components/AudioToggleIcon';
+import { playBgm, stopBgm, resetBgmSession } from '../audio/bgm';
 import { Colors, Radii, useResponsive } from '../theme';
 import copywriteData from '../../assets/copywrite.json';
 
@@ -96,6 +97,25 @@ export default function CopywriteScreen({ navigation }: Props) {
       const p = await getUserProfile();
       setProfile(p);
     })();
+  }, []);
+
+  // BGM 재생/정지 — 걱정타임 화면과 동일 정책 (단, 필사는 타이머 없음)
+  //   - 진입 + audioEnabled = true → 세션 트랙 재생 (첫 진입 시 랜덤 선택)
+  //   - 토글 OFF → stopBgm() (트랙 선택은 유지)
+  //   - 토글 ON 다시 → 동일 트랙 처음부터 재생
+  useEffect(() => {
+    if (!profile?.audioEnabled) {
+      void stopBgm();
+      return;
+    }
+    void playBgm();
+  }, [profile?.audioEnabled]);
+
+  // 화면 unmount 시 BGM 세션 완전 종료 (트랙 선택도 해제 → 다음 세션 새 랜덤)
+  useEffect(() => {
+    return () => {
+      void resetBgmSession();
+    };
   }, []);
 
   const handleToggleAudio = async () => {
