@@ -169,12 +169,12 @@ export default function HomeScreen({ navigation, route }: Props) {
 
   const headerDate = `${displayedMonth.year}.${String(displayedMonth.month).padStart(2, '0')}`;
 
-  // 꽃밭 표시 범위: 기록은 영구 저장하되, 꽃밭에서는 최근 1년(이번 달 포함 12개월)만 열람.
-  // 미래 달 / 1년 초과 과거로는 이동 차단.
+  // 꽃밭 표시 범위: 기록은 영구 저장하되, 꽃밭에서는 최근 6개월(이번 달 포함)만 열람.
+  // 미래 달 / 6개월 초과 과거로는 이동 차단.
   const monthIndex = (y: number, mo: number) => y * 12 + (mo - 1);
   const currentMonthIdx = monthIndex(today.getFullYear(), today.getMonth() + 1);
   const displayedMonthIdx = monthIndex(displayedMonth.year, displayedMonth.month);
-  const oldestMonthIdx = currentMonthIdx - 11; // 이번 달 포함 12개월
+  const oldestMonthIdx = currentMonthIdx - 5; // 이번 달 포함 6개월
   const canGoPrev = displayedMonthIdx > oldestMonthIdx;
   const canGoNext = displayedMonthIdx < currentMonthIdx;
 

@@ -14,7 +14,7 @@ import {
   View, StyleSheet, TouchableOpacity, ScrollView,
   Modal, Platform, Pressable, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { Ionicons } from '@expo/vector-icons';
 import ExitIcon from '../../assets/icons/exit.svg';
@@ -563,6 +563,7 @@ interface FocusTimeSheetProps {
 
 function FocusTimeSheet({ visible, initial, onClose, onConfirm }: FocusTimeSheetProps) {
   const styles = useStyles();
+  const insets = useSafeAreaInsets();
   const [picked, setPicked] = useState(initial);
 
   useEffect(() => {
@@ -570,9 +571,10 @@ function FocusTimeSheet({ visible, initial, onClose, onConfirm }: FocusTimeSheet
   }, [visible, initial]);
 
   return (
-    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <Pressable style={styles.backdrop} onPress={onClose} />
-      <View style={[styles.sheet, { gap: 84 }]}>
+      {/* figma 215:8132 — sheet pt:32 pb:40 px:24 (+ safe-area bottom inset → 네비바 위로) */}
+      <View style={[styles.sheet, { gap: 82, paddingBottom: 40 + insets.bottom }]}>
         <View style={styles.focusTopGroup}>
           <Text variant="titleLargeMid" style={styles.sheetTitle}>
             집중 시간을 선택해 주세요.
@@ -761,11 +763,12 @@ function useStyles() {
           bottom: 0,
           left: 0,
           right: 0,
-          height: hp(403),
+          // height: 자연 stacking — paddingBottom + 안전영역 inset 으로 네비바 위로 띄움
           backgroundColor: Colors.white,
           borderTopLeftRadius: Radii.lg, // 16
           borderTopRightRadius: Radii.lg, // 16
-          paddingVertical: hp(Spacing.xxxxl), // 32
+          // figma 215:8132 — pt 32 / pb 40 (+ safe-area, sheet 사용처에서 inline 보정)
+          paddingTop: hp(Spacing.xxxxl), // 32
           justifyContent: 'center',
           alignItems: 'center',
         },

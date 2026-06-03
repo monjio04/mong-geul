@@ -15,7 +15,7 @@ import {
 import { saveUserProfile } from '../../storage/storage';
 import { scheduleCycle } from '../../notifications/scheduler';
 import type { UserProfile } from '../../storage/types';
-import { Button, Text } from '../../components/ui';
+import { BottomButton, Text } from '../../components/ui';
 import { ProgressBar } from '../../components/ProgressBar';
 import { OnboardingHead } from '../../components/OnboardingHead';
 import { Colors, useResponsive } from '../../theme';
@@ -102,22 +102,26 @@ export default function OnboardingPermissionScreen({ route, navigation }: Props)
         <Image source={BELL_IMAGE} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
       </View>
 
-      {/* 시작하기 버튼 (loading 시 스피너) */}
-      <View style={[styles.buttonWrap, { bottom: hp(42) }]}>
-        {loading ? (
-          <View style={[styles.button, styles.loadingButton, { width: wp(326) }]}>
+      {/* 시작하기 버튼 — figma 677:842 "bottom" 컴포넌트 (BottomButton) 적용 */}
+      {loading ? (
+        // 로딩 시엔 BottomButton 과 동일 시각·위치의 박스에 스피너만 노출
+        <View
+          style={[
+            styles.loadingWrap,
+            {
+              paddingTop: hp(10),
+              paddingBottom: hp(60),
+              paddingHorizontal: wp(20),
+            },
+          ]}
+        >
+          <View style={styles.loadingButton}>
             <ActivityIndicator color={Colors.white} />
           </View>
-        ) : (
-          <Button
-            variant="primary"
-            size="lg"
-            label="시작하기"
-            onPress={handleStart}
-            style={{ width: wp(326) }}
-          />
-        )}
-      </View>
+        </View>
+      ) : (
+        <BottomButton label="시작하기" onPress={handleStart} />
+      )}
     </SafeAreaView>
   );
 }
@@ -136,15 +140,16 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
 
-  // 하단 버튼 wrap
-  buttonWrap: {
+  // 로딩 상태 wrap — BottomButton 의 외부 컨테이너 사양 그대로 (figma 844:2803)
+  loadingWrap: {
     position: 'absolute',
+    bottom: 0,
     left: 0,
     right: 0,
-    alignItems: 'center',
   },
-  // loading 상태일 때 Button 자리에 같은 시각적 박스로 스피너 표시
+  // 내부 박스 — Button(primary, lg, fullWidth) 와 동일 사양
   loadingButton: {
+    width: '100%',
     height: 56,
     backgroundColor: Colors.mainGreen,
     borderRadius: 16,

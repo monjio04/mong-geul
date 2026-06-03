@@ -27,7 +27,8 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { Text, Button } from '../components/ui';
 import { MainButton, type MainButtonHighlight } from '../components/MainButton';
-import { Colors, Radii, useResponsive } from '../theme';
+import { SpeechBubble } from '../components/SpeechBubble';
+import { Colors, Radii, useResponsive, Fonts } from '../theme';
 import { getUserProfile } from '../storage/storage';
 
 const BG_IMAGE = require('../../assets/images/background.png');
@@ -208,6 +209,34 @@ export default function OnboardingGuideScreen({ navigation }: Props) {
             style={{ width: '100%', height: '100%' }}
             resizeMode="contain"
           />
+        </View>
+      )}
+
+      {/* sub_char 말풍선 "나는 송이!" — figma 722:987 (guide1 sub_char 자기소개) */}
+      {step === 1 && (
+        <View
+          pointerEvents="none"
+          style={{
+            position: 'absolute',
+            // sub_char (top hp(250), left wp(166)) 좌측 위쪽에 띄움 — 꼬리(우측 아래)가 꽃 방향
+            top: hp(197),
+            left: wp(95),
+          }}
+        >
+          <SpeechBubble tailAlign="end" width="auto">
+            <Text
+              allowFontScaling={false}
+              style={{
+                fontFamily: Fonts.handwriting,
+                fontSize: 13,
+                color: '#000',
+                letterSpacing: -0.26,
+                textAlign: 'center',
+              }}
+            >
+              나는 송이!
+            </Text>
+          </SpeechBubble>
         </View>
       )}
 

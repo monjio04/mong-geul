@@ -17,7 +17,7 @@
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, StyleSheet, StatusBar, ScrollView, Alert, Vibration, Pressable,
+  View, StyleSheet, StatusBar, ScrollView, Alert, Vibration, Pressable, Image,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -32,14 +32,16 @@ import {
 import type { UserProfile, MemoEntry } from '../storage/types';
 import { startTimer, completeTimer, startAdvanced } from '../timer/timerService';
 import { resolveState } from '../timer/stateMachine';
-import { Button, Text } from '../components/ui';
+import { BottomButton, Text } from '../components/ui';
 import { SpeechBubble } from '../components/SpeechBubble';
 import { AudioToggleIcon } from '../components/AudioToggleIcon';
 import { WorryTimer } from '../components/WorryTimer';
 import { Colors, Radii, useResponsive, Fonts } from '../theme';
 import { playBgm, stopBgm, resetBgmSession } from '../audio/bgm';
 import { isNfcSession, playFrogStart, playFrog5min, playFrogEnd } from '../audio/frog';
+import { useKeepAwake } from 'expo-keep-awake';
 import MainCharSvg from '../../assets/images/main_char.svg';
+const BOX_ICON = require('../../assets/icons/box.png');
 import worryHintsData from '../../assets/worry_hints.json';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'WorryTime'>;
@@ -77,6 +79,10 @@ const FIGMA_STATUSBAR = 24;
 const COMPLETE_THRESHOLD_SEC = 10 * 60;
 
 export default function WorryTimeScreen({ navigation }: Props) {
+  // 걱정타임 진행 중에는 화면이 자동으로 꺼지지 않도록 keep awake 활성화
+  // (unmount 시 자동 해제)
+  useKeepAwake();
+
   const insets = useSafeAreaInsets();
   const { wp, hp, width, height } = useResponsive();
   const [hint] = useState(() => pickRandomHint());
@@ -175,16 +181,21 @@ export default function WorryTimeScreen({ navigation }: Props) {
       setElapsedSec(elapsed);
 
       const remaining = totalSec - elapsed;
-      // 🐸 5분 남았을 때 — NFC 세션만, 1회만
+      // 🐸 5분 남았을 때 — NFC 세션만, 1회만. BGM 잠시 정지 → 멘트 → BGM 재개
       if (
         !frog5minPlayedRef.current &&
         remaining <= 5 * 60 &&
         remaining > 5 * 60 - 2 // 5분 ~ 4분 58초 사이 (1초 tick 놓침 방지)
       ) {
         frog5minPlayedRef.current = true;
-        if (await isNfcSession()) playFrog5min();
+        if (await isNfcSession()) {
+          const audioOn = profile?.audioEnabled !== false;
+          if (audioOn) await stopBgm();
+          await playFrog5min(); // 음원 끝까지 대기
+          if (audioOn) void playBgm(); // 같은 트랙으로 재개
+        }
       }
-      // 🐸 타이머 종료 시 — NFC 세션만, 1회만
+      // 🐸 타이머 종료 시 — NFC 세션만, 1회만 (이 시점엔 BGM 세션 종료 useEffect 가 알아서 정지)
       if (!frogEndPlayedRef.current && elapsed >= totalSec) {
         frogEndPlayedRef.current = true;
         if (await isNfcSession()) playFrogEnd();
@@ -381,6 +392,32 @@ export default function WorryTimeScreen({ navigation }: Props) {
       alignItems: 'flex-end',
     },
 
+    // figma 877:2887 empty state — bg lightGray200, rounded 16, pt 60 pb 70 px 15, gap 10
+    emptyMemoCard: {
+      width: wp(315),
+      backgroundColor: Colors.lightGray200,
+      borderRadius: Radii.lg,
+      paddingTop: hp(60),
+      paddingBottom: hp(70),
+      paddingHorizontal: wp(15),
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: hp(10),
+    },
+    // figma 878:2934 빈상자 1 — 47×47
+    emptyMemoIcon: {
+      width: 47,
+      height: 47,
+    },
+    // figma 877:2888 — 15/400 darkGray -0.3 center
+    emptyMemoText: {
+      fontSize: 15,
+      fontWeight: '400',
+      color: Colors.darkGray,
+      letterSpacing: -0.3,
+      textAlign: 'center',
+    },
+
     fadeOverlay: {
       position: 'absolute',
       left: 0,
@@ -389,20 +426,7 @@ export default function WorryTimeScreen({ navigation }: Props) {
       height: hp(120),
     },
 
-    // 흰 박스 + 버튼 (10분 후만) — 피그마 Frame 443: w=360, h=120
-    completeBox: {
-      position: 'absolute',
-      left: 0,
-      right: 0,
-      bottom: 0,
-      height: hp(120),
-      backgroundColor: Colors.white,
-      paddingTop: hp(22),
-      alignItems: 'center',
-    },
-    completeButton: {
-      width: wp(325),
-    },
+    // 하단 BottomButton 컴포넌트 사용 (figma 844:2827) — 별도 box 스타일 불필요
 
     // WorryTimer 외부 size override
     timerSize: {
@@ -482,16 +506,26 @@ export default function WorryTimeScreen({ navigation }: Props) {
           contentContainerStyle={styles.memoListInner}
           showsVerticalScrollIndicator={false}
         >
-          {memos.map((memo, idx) => (
-            <View key={idx} style={styles.memoCard}>
-              <Text variant="bodyRegular" style={styles.memoText}>{memo.text}</Text>
-              <View style={styles.memoTimeRow}>
-                <Text variant="tiny">
-                  {formatMemoTime(memo.createdAt)}
-                </Text>
-              </View>
+          {memos.length === 0 ? (
+            // figma 877:2887 — empty state (메모 없을 때)
+            <View style={styles.emptyMemoCard}>
+              <Image source={BOX_ICON} style={styles.emptyMemoIcon} resizeMode="contain" />
+              <Text style={styles.emptyMemoText} allowFontScaling={false}>
+                오늘 작성한 걱정 메모가 없어요
+              </Text>
             </View>
-          ))}
+          ) : (
+            memos.map((memo, idx) => (
+              <View key={idx} style={styles.memoCard}>
+                <Text variant="bodyRegular" style={styles.memoText}>{memo.text}</Text>
+                <View style={styles.memoTimeRow}>
+                  <Text variant="tiny">
+                    {formatMemoTime(memo.createdAt)}
+                  </Text>
+                </View>
+              </View>
+            ))
+          )}
         </ScrollView>
 
         <LinearGradient
@@ -502,26 +536,23 @@ export default function WorryTimeScreen({ navigation }: Props) {
         />
       </View>
 
-      {/* 하단 완료 버튼
+      {/* 하단 완료 버튼 — figma 844:2827 bottom-button (pt:10 pb:60 px:20, 네비바 위로 띄움)
          - 10분 ~ 타이머 만료 전: "여기까지만 작성할게요" (조기 완료)
-         - 타이머 만료 후: "작성 완료" (figma 679:900, 사용자 액션으로만 진행) */}
+         - 타이머 만료 후: "작성 완료" (figma 679:900, 사용자 액션으로만 진행)
+         · containerStyle 로 흰 배경 추가 → 뒤 메모 영역 마스킹 */}
       {(isCompleteAvailable || isTimerEnded) && (
-        <View style={styles.completeBox}>
-          <Button
-            variant="primary"
-            size="lg"
-            label={
-              submitting
-                ? '처리 중...'
-                : isTimerEnded
-                  ? '작성 완료'
-                  : '여기까지만 작성할게요'
-            }
-            onPress={handleComplete}
-            disabled={submitting}
-            style={styles.completeButton}
-          />
-        </View>
+        <BottomButton
+          label={
+            submitting
+              ? '처리 중...'
+              : isTimerEnded
+                ? '작성 완료'
+                : '여기까지만 작성할게요'
+          }
+          onPress={handleComplete}
+          disabled={submitting}
+          containerStyle={{ backgroundColor: Colors.white }}
+        />
       )}
     </Pressable>
   );
