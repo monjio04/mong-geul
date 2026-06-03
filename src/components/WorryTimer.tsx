@@ -125,11 +125,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 7,
   },
-  // 진행 중 (탭 시) — bodyLarge 그대로
+  // 진행 중 (탭 시) — figma 337:393 (I337:393;289:1073): 20px Medium black -0.4
   timeText: {
-    fontSize: 15,
-    fontWeight: '600',
-    letterSpacing: -0.3,
+    fontSize: 20,
+    fontWeight: '500',
+    letterSpacing: -0.4,
   },
   // figma 679:908 시간 끝난 후 — 20px Medium mainGreen
   timeTextEnded: {

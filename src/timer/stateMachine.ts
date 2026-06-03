@@ -30,6 +30,11 @@ import {
  *
  * 사용처: 알림 핸들러 (stale action 차단), HomeScreen 좌측 박스 탭 분기 등.
  */
+// "새벽 worryTime" = 00:00–03:59. 이 범위로 설정된 사용자는 cycle boundary(04:00)
+//  이전에 worryTime 이 자연스럽게 위치 → 00:00–03:59 시점에도 오늘 worryTime 이
+//  곧 다가오므로 cycle 종료 판단 예외 처리.
+const DAWN_WORRY_TIME_HOUR = 4;
+
 export function hasTodayCycleEnded(
   state: WorkerState,
   now: Date,
@@ -38,6 +43,18 @@ export function hasTodayCycleEnded(
   if (state === 'locked' || state === 'completed') return true;
 
   if (state === 'idle') {
+    // 새벽 (00:00–03:59) — 04:00 cycle boundary 이전이라 어제 cycle 의 잠금 알림이
+    //  아직 발화 못 했거나(첫 빌드 등) timerState.isLocked 가 false 인 상태.
+    //  어제 cycle 의 worryTime + 90분(잠금 시각) 이 이미 지났다면 cycle 종료로 간주.
+    //  단 worryTime 이 새벽(<04:00) 이면 오늘 worryTime 이 곧 다가오므로 예외 — 정상 idle.
+    if (now.getHours() < 4 && worryTime.hour >= DAWN_WORRY_TIME_HOUR) {
+      const yesterdayPrimary = new Date(now);
+      yesterdayPrimary.setDate(yesterdayPrimary.getDate() - 1);
+      yesterdayPrimary.setHours(worryTime.hour, worryTime.minute, 0, 0);
+      const yesterdayLock = getLockTime(yesterdayPrimary);
+      if (now > yesterdayLock) return true;
+    }
+
     const todayPrimary = new Date(now);
     todayPrimary.setHours(worryTime.hour, worryTime.minute, 0, 0);
     const todayLock = getLockTime(todayPrimary);
