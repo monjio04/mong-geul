@@ -26,6 +26,24 @@ function setTimeOnDate(base: Date, hour: number, minute: number): Date {
 }
 
 /**
+ * 현재 사이클(now 가 속한 04:00–04:00 cycle)의 1차 알림 시각.
+ *  - cycle 시작 = 가장 최근 04:00 (now < 04:00 이면 어제 04:00)
+ *  - worryTime 이 cycle 안에서 발생하는 시각 반환
+ *  - worryTime.hour < 4 일 땐 cycle 시작 다음 calendar day 의 H:M
+ *
+ * 사용처: completeTimer 의 state.alarmDate fallback — 이미 진행 중인 cycle 의 기록 날짜 계산.
+ */
+export function getCurrentCyclePrimary(now: Date, worryTime: WorryTime): Date {
+  const cycleStart = new Date(now);
+  cycleStart.setHours(4, 0, 0, 0);
+  if (now < cycleStart) cycleStart.setDate(cycleStart.getDate() - 1);
+  const primary = new Date(cycleStart);
+  primary.setHours(worryTime.hour, worryTime.minute, 0, 0);
+  if (worryTime.hour < 4) primary.setDate(primary.getDate() + 1);
+  return primary;
+}
+
+/**
  * 오늘 또는 내일의 1차 알림 시각 반환
  * 현재 시각이 이미 지났으면 내일로
  */
