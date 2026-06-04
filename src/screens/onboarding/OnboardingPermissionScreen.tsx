@@ -12,8 +12,9 @@ import {
   requestNotificationPermission,
   requestExactAlarmPermission,
 } from '../../notifications/permissions';
-import { saveUserProfile } from '../../storage/storage';
+import { saveUserProfile, saveTimerState, getTimerState } from '../../storage/storage';
 import { scheduleCycle } from '../../notifications/scheduler';
+import { getCurrentCyclePrimary, getAlarmDateString } from '../../timer/worryTimeWindow';
 import type { UserProfile } from '../../storage/types';
 import { BottomButton, Text } from '../../components/ui';
 import { ProgressBar } from '../../components/ProgressBar';
@@ -52,8 +53,23 @@ export default function OnboardingPermissionScreen({ route, navigation }: Props)
       };
       await saveUserProfile(profile);
 
-      // 첫 알림 사이클 예약
-      await scheduleCycle(profile.worryTime);
+      // 첫 알림 사이클 예약 + state.alarmDate 명시적 초기화
+      //   첫 사이클 completeTimer 가 state.alarmDate 의 fallback 에 의존하지 않게,
+      //   온보딩 시점에 이번 사이클의 정확한 날짜를 박아둠.
+      //   (이전엔 null → fallback 이 "다음" 알림 날짜를 반환해 첫 기록이 내일 키로
+      //    저장되고 다음 사이클이 덮어쓰는 버그 발생)
+      const { primaryNotifId, secondaryNotifId, lockNotifId } =
+        await scheduleCycle(profile.worryTime);
+      const now = new Date();
+      const currentCyclePrimary = getCurrentCyclePrimary(now, profile.worryTime);
+      const existingTimerState = await getTimerState();
+      await saveTimerState({
+        ...existingTimerState,
+        alarmDate: getAlarmDateString(currentCyclePrimary),
+        primaryNotifId,
+        secondaryNotifId,
+        lockNotifId,
+      });
 
       // 홈으로 이동 (온보딩 완전 종료)
       // 홈으로 reset + 그 위에 가이드 모달 진입 (4 슬라이드)

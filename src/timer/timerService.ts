@@ -29,6 +29,7 @@ import {
   getAlarmDateString,
   getNextPrimaryAlarm,
   getNextCycleStart,
+  getCurrentCyclePrimary,
 } from './worryTimeWindow';
 import type { WorryTime } from './worryTimeWindow';
 import { pickFlowerType, pickFlowerPosition } from './flowerCycle';
@@ -91,7 +92,11 @@ export async function completeTimer(
 
   // 1. 기록 저장 — 꽃이면 flowerType(7개 사이클) 추첨, 새싹이면 type 없음
   // 위치는 alarmDate(YYYY-MM-DD) 기반 deterministic — month seed로 day마다 다른 slot
-  const alarmDate = state.alarmDate ?? getAlarmDateString(getNextPrimaryAlarm(now, worryTime));
+  //
+  // fallback (state.alarmDate 가 null — 첫 사이클 등): 현재 사이클의 1차 알림 시각 사용.
+  // 이전엔 getNextPrimaryAlarm 으로 "다음" 알림 시각을 잡아 worryTime 이 이미 지난 시점에
+  // 다음 날 date 로 기록 → 다음 사이클이 같은 키 덮어쓰면서 기록 소실 버그가 있었음.
+  const alarmDate = state.alarmDate ?? getAlarmDateString(getCurrentCyclePrimary(now, worryTime));
   const flowerType = status === 'flower' ? await pickFlowerType() : undefined;
   // 'YYYY-MM-DD' 파싱 (로컬 타임존 자정 기준)
   const [yy, mm, dd] = alarmDate.split('-').map(Number);
