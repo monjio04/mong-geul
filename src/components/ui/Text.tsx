@@ -19,7 +19,7 @@ import {
   type TextProps as RNTextProps,
   type TextStyle,
 } from 'react-native';
-import { Colors, Typography, type TypographyVariant, type ColorToken } from '../../theme';
+import { Colors, Typography, withAppFont, type TypographyVariant, type ColorToken } from '../../theme';
 
 export interface TextProps extends RNTextProps {
   variant?: TypographyVariant;
@@ -41,13 +41,13 @@ export function Text({
       {...rest}
       // 시스템 폰트 크기 설정 무시 — 피그마 dp 그대로 렌더링
       allowFontScaling={false}
-      style={[
+      style={withAppFont([
         styles.base,
         Typography[variant],
         { color: Colors[color] },
         align && { textAlign: align },
         style,
-      ]}
+      ])}
     >
       {children}
     </RNText>
@@ -56,7 +56,6 @@ export function Text({
 
 const styles = StyleSheet.create({
   base: {
-    // RN 기본 fontFamily를 비워두면 시스템 Korean 폰트(Noto Sans KR / Apple SD)가 자동 적용됨.
     includeFontPadding: false,
   },
 });

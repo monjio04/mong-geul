@@ -14,7 +14,7 @@ const SECONDARY_ALARM_OFFSET_MIN = 30;   // 1차 알림 후 30분 → 2차 알�
 const LOCK_OFFSET_MIN = 60;              // 2차 알림 후 1시간 → 잠금
 const DELAY_LOCK_OFFSET_MIN = 30;        // 미루기 재알림 후 30분 → 잠금
 const MAX_DELAY_HOUR = 4;               // 미루기 상한: 익일 04:00
-const MIN_DELAY_OFFSET_MIN = 1;          // [TEST] 미루기 하한 1분 (원래 10) — 알람 즉시 테스트용
+const MIN_DELAY_OFFSET_MIN = 10;         // 미루기 하한: 지금부터 10분 뒤
 
 /**
  * 특정 날짜 + 시각을 Date 객체로 반환
@@ -113,6 +113,22 @@ export function getAlarmDateString(primaryAlarm: Date): string {
 export function isInWorryWindow(now: Date, primaryAlarm: Date): boolean {
   const lockTime = getLockTime(primaryAlarm);
   return now >= primaryAlarm && now < lockTime;
+}
+
+/**
+ * "걱정타임 미루기" 액션이 유효한 시간 윈도우
+ *  - 시작: 2차 알림 발화 시각 (= primaryAlarm + 30분)
+ *  - 종료: 잠금 시각        (= primaryAlarm + 90분)
+ *
+ * 정책: 2차 알림 발화 시점부터 1시간 동안만 미루기 액션이 활성.
+ *       1차 알림 직후 ~ 2차 알림 전까지의 30분은 미루기 불가 (옛 알림 stale 차단).
+ *
+ * 사용처: App.tsx handleNotificationResponse — DELAY action 이 유효한지 사전 검증.
+ */
+export function isInDelayWindow(now: Date, primaryAlarm: Date): boolean {
+  const secondary = getSecondaryAlarmTime(primaryAlarm);
+  const lockTime = getLockTime(primaryAlarm);
+  return now >= secondary && now < lockTime;
 }
 
 /**

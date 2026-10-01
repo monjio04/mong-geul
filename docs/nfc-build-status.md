@@ -74,6 +74,6 @@
 
 ## ⚠ 테스트 모드 값 (사용자 결정: 그대로 유지)
 
-- `worryTimeWindow.ts` `MIN_DELAY_OFFSET_MIN = 1` (원래 10) — **테스트용 유지, 배포 직전 10으로**
+- ~~`worryTimeWindow.ts` `MIN_DELAY_OFFSET_MIN = 1`~~ → 10으로 복귀 완료 (2026-10-01)
 - 4월 더미 seed (`App.tsx`, `__DEV__` only, release 자동 제외)
 - 그 외 30분/60분/2번째팝업/5초 등은 모두 production 정상값

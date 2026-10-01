@@ -18,6 +18,7 @@ import {
   resetMemos,
   incrementProgress,
   applyPendingProfile,
+  getUserProfile,
 } from '../storage/storage';
 import type { TimerState, DayRecord } from '../storage/types';
 import {
@@ -30,6 +31,7 @@ import {
   getNextPrimaryAlarm,
   getNextCycleStart,
   getCurrentCyclePrimary,
+  getLockTime,
 } from './worryTimeWindow';
 import type { WorryTime } from './worryTimeWindow';
 import { pickFlowerType, pickFlowerPosition } from './flowerCycle';
@@ -128,11 +130,15 @@ export async function completeTimer(
   // 5. pending 설정 적용 (다음 사이클부터 새 값) → 알림 예약
   //    사용자가 설정 화면에서 변경한 worryTime/focusMinutes가 pending에 저장되어 있다면
   //    여기서 active로 promote. 다음 cycle 알람은 새 값으로 schedule됨.
-  //    fromTime = 다음 cycle 시작점(다음 4am) → "오늘 worryTime 이 미래여도 무조건 다음 cycle"
-  //    (이번 cycle 방금 완료 → 같은 날 또 worryTime 잡으면 안 됨)
+  //    fromTime = "이번 cycle 의 primary 기준" 다음 cycle 시작점 → stale 완료
+  //    (어제 미완료 → 오늘 늦게 완료 케이스) 에서도 정확히 다음 날 알람을 잡음.
+  //    이전엔 getNextCycleStart(now) 였는데 now 가 이미 다음 cycle 에 있으면
+  //    그 다음 cycle 로 건너뛰는 버그 (day 2 가 통째로 사라짐) 가 있었음.
   const appliedProfile = await applyPendingProfile();
   const effectiveWorryTime = appliedProfile?.worryTime ?? worryTime;
-  const nextCycleStart = getNextCycleStart(now);
+  const [cyy, cmm, cdd] = alarmDate.split('-').map(Number);
+  const currentCyclePrimary = new Date(cyy, cmm - 1, cdd, worryTime.hour, worryTime.minute);
+  const nextCycleStart = getNextCycleStart(currentCyclePrimary);
   const { primaryNotifId, secondaryNotifId, lockNotifId } =
     await scheduleCycle(effectiveWorryTime, nextCycleStart);
 
@@ -196,10 +202,13 @@ export async function lockCycle(
   await resetMemos();
 
   // pending 설정 적용 + 다음 cycle 알림 예약 (completeTimer 동일)
-  // fromTime = 다음 cycle 시작점 → "이번 cycle 끝났으니 무조건 다음 cycle 알람"
+  // fromTime = "이번 cycle 의 primary 기준" 다음 cycle 시작점.
+  // (stale lock 케이스 — 어제 미완료 → 오늘 자동 잠금 — 에서도 정확히 다음 날 알람 스케줄)
   const appliedProfile = await applyPendingProfile();
   const effectiveWorryTime = appliedProfile?.worryTime ?? worryTime;
-  const nextCycleStart = getNextCycleStart(now);
+  const [cyy, cmm, cdd] = alarmDate.split('-').map(Number);
+  const currentCyclePrimary = new Date(cyy, cmm - 1, cdd, worryTime.hour, worryTime.minute);
+  const nextCycleStart = getNextCycleStart(currentCyclePrimary);
 
   // NFC 세션 reset — 잠금 시점에도 다음 세션은 일반 진입으로 시작
   await setNfcSession(false);
@@ -222,6 +231,44 @@ export async function lockCycle(
     lockNotifId,
     timerEndNotifId: null,
   });
+}
+
+// ─── 앱 시작 시 stale 세션 복구 ──────────────────────────
+
+/**
+ * 앱 시작 시 호출. 미완료 세션이 lockTime 을 넘긴 채 남아있으면 자동 잠금.
+ *
+ * 케이스 1: 사용자가 걱정타임 시작했다가 작성 완료 안 누르고 이탈 → 같은 날 늦게 진입
+ *          (예: 14시 시작, 20시 진입) → cycle 의 lockTime(=primary+90분, 15:30) 이미 지남.
+ * 케이스 2: 이탈 후 다음날 진입 → 더더욱 지남.
+ *
+ * 판정: startedAt 이 속한 cycle 의 lockTime 보다 now 가 늦으면 stale → lock.
+ *       lockTime 이내면 사용자가 아직 작성 중 — 정상 진행.
+ */
+export async function recoverStaleSessionIfNeeded(): Promise<void> {
+  const state = await getTimerState();
+  if (!state.startedAt || state.isLocked) return;
+
+  const profile = await getUserProfile();
+  if (!profile) return;
+
+  // startedAt 이 속한 cycle 의 primary → lockTime 계산
+  const startedAt = new Date(state.startedAt);
+  const startedCyclePrimary = getCurrentCyclePrimary(startedAt, profile.worryTime);
+  const startedCycleLock = getLockTime(startedCyclePrimary);
+  const now = new Date();
+
+  if (now <= startedCycleLock) return; // 아직 cycle 안 — 정상 진행 (resume 가능)
+
+  // Stale — startedAt 의 cycle 자동 잠금 (빈자리 기록 + 다음 알람 예약)
+  if (state.alarmDate) {
+    console.log(
+      '[recoverStaleSession] locking stale cycle:',
+      state.alarmDate,
+      '(lockTime was', startedCycleLock.toLocaleString(), ')',
+    );
+    await lockCycle(state.alarmDate, profile.worryTime);
+  }
 }
 
 // ─── 미루기 처리 ─────────────────────────────────────────

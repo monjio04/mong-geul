@@ -22,7 +22,7 @@ import {
   type TextInputProps,
   type ViewStyle,
 } from 'react-native';
-import { Colors, Radii, Spacing, Typography } from '../../theme';
+import { Colors, Radii, Spacing, Typography, withAppFont } from '../../theme';
 import { Text } from './Text';
 
 export interface InputProps extends Omit<TextInputProps, 'style'> {
@@ -47,7 +47,7 @@ export function Input({
           placeholderTextColor={Colors.darkGray}
           // 시스템 폰트 크기 설정 무시
           allowFontScaling={false}
-          style={styles.input}
+          style={withAppFont(styles.input)}
         />
       </View>
       {hint && !errorText && (

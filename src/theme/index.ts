@@ -19,4 +19,4 @@ export type { SpacingToken, RadiusToken } from './spacing';
 
 export { useResponsive, FIGMA_W, FIGMA_H, MAX_SCALE } from './responsive';
 
-export { Fonts } from './fonts';
+export { Fonts, withAppFont } from './fonts';

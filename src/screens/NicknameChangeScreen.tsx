@@ -1,32 +1,41 @@
 /**
- * 닉네임 변경 화면
+ * 닉네임 변경 화면 — 피그마 "닉네임 변경" (217:344) 사양
  *
- * 설정 → 닉네임 옆 [변경] 버튼으로 진입
- * - 헤더: ← 닉네임 변경
- * - 현재 닉네임을 placeholder로 표시
- * - 공백 포함 최대 12자 검증
- * - 하단 완료 버튼 (초록)
+ * 설정 → 닉네임 옆 [변경] 버튼으로 진입.
+ *
+ * 피그마 절대좌표 (360×800 기준, status bar 24 baseline):
+ *   - exit (226:432): x=20, y=65
+ *   - header title (217:391): center-x, y=67.5 (16/500)
+ *   - OnboardingHead (217:540): top=131, left=calc(50%-15) translateX(-50%) → x=30, w=270
+ *   - input-name (217:538): top=217, center, w=300, h=47, rounded 8, lightGray200
+ *   - bottom-button (677:847): bottom=0, pt:10 pb:60 px:20 (BottomButton 컴포넌트)
+ *
+ * MemoScreen / WorryTimeScreen 와 동일한 절대좌표 패턴 — status bar baseline 빼고
+ * insets.top 보정해서 figma y 값 그대로 사용.
+ *
+ * 입력 제약: 공백 trim 후 1~12자 (MAX_LENGTH 12).
  */
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, TextInput,
-  KeyboardAvoidingView, Platform, Alert,
+  View, StyleSheet, TouchableOpacity, TextInput, Alert,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ExitIcon from '../../assets/icons/exit.svg';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../navigation/types';
 import { getUserProfile, saveUserProfile } from '../storage/storage';
 import { BottomButton, Text } from '../components/ui';
 import { OnboardingHead } from '../components/OnboardingHead';
-import { Colors, Spacing, Radii } from '../theme';
+import { Colors, Radii, withAppFont } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NicknameChange'>;
 
 const MAX_LENGTH = 12;
+const FIGMA_STATUSBAR = 24;
 
 export default function NicknameChangeScreen({ navigation }: Props) {
+  const insets = useSafeAreaInsets();
   const [currentNickname, setCurrentNickname] = useState('');
   const [input, setInput] = useState('');
 
@@ -53,60 +62,58 @@ export default function NicknameChangeScreen({ navigation }: Props) {
     navigation.goBack();
   };
 
+  // figma y → 화면 y (status bar baseline 24 빼고 insets.top 보정)
+  const adjustTop = (figmaY: number) => (figmaY - FIGMA_STATUSBAR) + insets.top;
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
-      <View style={styles.header}>
-        <TouchableOpacity
-          onPress={() => navigation.goBack()}
-          style={styles.headerBack}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <ExitIcon width={24} height={24} />
-        </TouchableOpacity>
+      {/* exit (x=20, y=65) — figma 226:432 */}
+      <TouchableOpacity
+        style={[styles.exitBtn, { top: adjustTop(65) }]}
+        onPress={() => navigation.goBack()}
+        hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+      >
+        <ExitIcon width={24} height={24} />
+      </TouchableOpacity>
+
+      {/* header title — center-x, y=67.5, 16/500 */}
+      <View style={[styles.headerTitleWrap, { top: adjustTop(67.5) }]} pointerEvents="none">
         <Text variant="titleMedium">닉네임 변경</Text>
-        <View style={{ width: 24 }} />
       </View>
 
-      <KeyboardAvoidingView
-        style={styles.body}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={20}
-      >
-        <View style={styles.bodyContent}>
-          {/* figma 215:8202 onboarding-head — 22/600 black + 15/500 darkGray (gap 8) */}
-          <OnboardingHead
-            title="어떤 이름으로 불러드릴까요?"
-            subtitle="실명이 아니어도 괜찮아요"
-            style={styles.headWrap}
-          />
-
-          {/* rounded 박스 인풋 — figma 217:538 input-name
-              · bg lightGray200, h 47, rounded 8, pl 15 pr 10 py 10
-              · placeholder "기존 닉네임" 15/600 darkGray */}
-          <View style={styles.inputBox}>
-            <TextInput
-              style={styles.input}
-              value={input}
-              onChangeText={(text) => {
-                if (text.length <= MAX_LENGTH) setInput(text);
-              }}
-              placeholder={currentNickname || '기존 닉네임'}
-              placeholderTextColor={Colors.darkGray}
-              maxLength={MAX_LENGTH}
-              autoFocus
-              returnKeyType="done"
-              onSubmitEditing={handleConfirm}
-            />
-          </View>
-        </View>
-
-        {/* 완료 버튼 — figma 677:768 bottom-button (네비바 위로 띄움) */}
-        <BottomButton
-          label="완료"
-          onPress={handleConfirm}
-          disabled={!isValid}
+      {/* OnboardingHead — figma 217:540 top:131, x=30 (calc(50%-15) translateX -50% → 좌측 30)
+          22/600 black + 15/500 darkGray, gap 8 */}
+      <View style={[styles.headWrap, { top: adjustTop(131) }]}>
+        <OnboardingHead
+          title="어떤 이름으로 불러드릴까요?"
+          subtitle="실명이 아니어도 괜찮아요"
         />
-      </KeyboardAvoidingView>
+      </View>
+
+      {/* input-name — figma 217:538 top:217, center, w 300, h 47
+          inner box: bg lightGray200, rounded 8, pl 15 pr 10 */}
+      <View style={[styles.inputBox, { top: adjustTop(217) }]}>
+        <TextInput
+          style={withAppFont(styles.input)}
+          value={input}
+          onChangeText={(text) => {
+            if (text.length <= MAX_LENGTH) setInput(text);
+          }}
+          placeholder={currentNickname || '기존 닉네임'}
+          placeholderTextColor={Colors.darkGray}
+          maxLength={MAX_LENGTH}
+          autoFocus
+          returnKeyType="done"
+          onSubmitEditing={handleConfirm}
+        />
+      </View>
+
+      {/* 완료 버튼 — figma 677:847 BottomButton (네비바 위로 띄움) */}
+      <BottomButton
+        label="완료"
+        onPress={handleConfirm}
+        disabled={!isValid}
+      />
     </SafeAreaView>
   );
 }
@@ -114,33 +121,35 @@ export default function NicknameChangeScreen({ navigation }: Props) {
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: Colors.background },
 
-  // 헤더
-  header: {
-    height: 56,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: Spacing.xxl, // 20
-  },
-  headerBack: {
+  // exit (figma x=20)
+  exitBtn: {
+    position: 'absolute',
+    left: 20,
     width: 24,
     height: 24,
     justifyContent: 'center',
     alignItems: 'center',
   },
 
-  // 바디
-  body: { flex: 1, paddingHorizontal: Spacing.xxl }, // 20
-  bodyContent: { flex: 1, paddingTop: Spacing.xl }, // 16
-
-  // OnboardingHead 와 input 박스 사이 — figma 217:344 (head top 131 → input top 217 ≈ gap 60)
-  headWrap: {
-    marginBottom: 38,
+  // header title — 전체 가로 폭 안에서 가운데 정렬
+  headerTitleWrap: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    alignItems: 'center',
   },
 
-  // figma 217:538 input-name — w 300, gap 8
-  // inner box: bg lightGray200, h 47, rounded 8, pl 15 pr 10 py 10, items-center
+  // OnboardingHead 위치 — figma calc(50%-15) + translateX(-50%) = left 30 (w 270)
+  headWrap: {
+    position: 'absolute',
+    left: 30,
+    width: 270,
+  },
+
+  // figma 217:538 input-name — 가운데 정렬, w 300, h 47
   inputBox: {
+    position: 'absolute',
+    left: 30, // (360 - 300) / 2 = 30 (figma 가운데 정렬)
     width: 300,
     height: 47,
     backgroundColor: Colors.lightGray200,
@@ -150,7 +159,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   input: {
-    // figma I217:538;90:353 — 15px Semibold darkGray placeholder, 입력 시 textPrimary
+    // figma I217:538;90:353 — 15px Semibold (placeholder=darkGray, 입력 시 textPrimary)
     fontSize: 15,
     fontWeight: '600',
     color: Colors.textPrimary,

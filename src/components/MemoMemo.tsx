@@ -20,7 +20,7 @@ import {
   type StyleProp,
 } from 'react-native';
 import { Text } from './ui';
-import { Colors } from '../theme';
+import { Colors, withAppFont } from '../theme';
 
 export interface MemoMemoProps {
   value: string;
@@ -63,7 +63,7 @@ export function MemoMemo({
         multiline
         autoFocus={autoFocus}
         textAlignVertical="top"
-        style={styles.input}
+        style={withAppFont(styles.input)}
         allowFontScaling={false}
       />
 

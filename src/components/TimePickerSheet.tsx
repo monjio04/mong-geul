@@ -171,7 +171,6 @@ function WheelColumn<T extends string | number>({
           <View key={`${String(item)}-${i}`} style={[styles.cell, { height: itemHeight }]}>
             <Text
               style={{
-                fontFamily: 'Inter',
                 fontSize,
                 fontWeight,
                 color,

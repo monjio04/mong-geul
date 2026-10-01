@@ -53,8 +53,8 @@ export function initNotificationHandler() {
   Notifications.setNotificationHandler({
     handleNotification: async () => ({
       shouldShowAlert: true,
-      // 알림음 비활성 — 진동만 (Android channel.enableVibrate + iOS device silent mode)
-      shouldPlaySound: false,
+      // 앱이 켜져 있을 때 도착한 알림도 iOS 는 기본음(무음 모드면 진동) 재생
+      shouldPlaySound: Platform.OS === 'ios',
       shouldSetBadge: false,
       shouldShowBanner: true,
       shouldShowList: true,
@@ -237,8 +237,9 @@ async function scheduleAt(date: Date, content: ScheduleContent): Promise<string 
         title: content.title,
         body: content.body,
         data: content.data,
-        // 알림음 OFF — 진동만 (Android: channel 의 enableVibrate 사용 / iOS: 사일런트 모드 시 진동)
-        sound: false,
+        // Android: 소리 없이 channel 진동만. iOS 는 진동만 지정할 수 없어 기본음 사용
+        // (무음 스위치 ON → 진동만, OFF → 소리+진동)
+        sound: Platform.OS === 'ios' ? 'default' : false,
         ...(content.categoryIdentifier ? { categoryIdentifier: content.categoryIdentifier } : {}),
         ...(Platform.OS === 'android' ? { channelId: CHANNEL_ID } : {}),
       },
