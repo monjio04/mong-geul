@@ -116,6 +116,22 @@ export function isInWorryWindow(now: Date, primaryAlarm: Date): boolean {
 }
 
 /**
+ * "걱정타임 미루기" 액션이 유효한 시간 윈도우
+ *  - 시작: 2차 알림 발화 시각 (= primaryAlarm + 30분)
+ *  - 종료: 잠금 시각        (= primaryAlarm + 90분)
+ *
+ * 정책: 2차 알림 발화 시점부터 1시간 동안만 미루기 액션이 활성.
+ *       1차 알림 직후 ~ 2차 알림 전까지의 30분은 미루기 불가 (옛 알림 stale 차단).
+ *
+ * 사용처: App.tsx handleNotificationResponse — DELAY action 이 유효한지 사전 검증.
+ */
+export function isInDelayWindow(now: Date, primaryAlarm: Date): boolean {
+  const secondary = getSecondaryAlarmTime(primaryAlarm);
+  const lockTime = getLockTime(primaryAlarm);
+  return now >= secondary && now < lockTime;
+}
+
+/**
  * 미루기 picker 선택 가능 범위
  * min: now + 10분
  * max: 다음 04:00 (현재가 04:00 이전이면 오늘 04:00, 이후면 익일)

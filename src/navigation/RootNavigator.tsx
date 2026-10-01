@@ -21,6 +21,7 @@ import WorryTimeEntryScreen from '../screens/WorryTimeEntryScreen';
 import FlowerBloomScreen from '../screens/FlowerBloomScreen';
 import SplashScreen from '../screens/SplashScreen';
 import { isOnboardingDone, initSchema } from '../storage/storage';
+import { recoverStaleSessionIfNeeded } from '../timer/timerService';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -34,6 +35,14 @@ export default function RootNavigator() {
   useEffect(() => {
     (async () => {
       await initSchema();
+      // 어제(또는 더 과거) 미완료 세션 자동 잠금 — 안 그러면 오늘 cycle 알람이
+      // 예약 안 된 채로 흘러가 오늘 worryTime 이 통째로 사라짐.
+      // 실패해도 앱 시작은 진행 (잠금만 못 함, state machine 의 hasTodayCycleEnded fallback 이 잡아줌)
+      try {
+        await recoverStaleSessionIfNeeded();
+      } catch (e) {
+        console.error('[RootNavigator] recoverStaleSession 실패:', e);
+      }
       const done = await isOnboardingDone();
       setInitialRoute(done ? 'Home' : 'Onboarding');
     })();

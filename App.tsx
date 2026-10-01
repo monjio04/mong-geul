@@ -13,6 +13,7 @@ import DebugPanel from './src/__dev__/DebugPanel';
 import { initNotifications, NOTIF_ACTION } from './src/notifications/scheduler';
 import { getTimerState, getUserProfile } from './src/storage/storage';
 import { resolveState, hasTodayCycleEnded } from './src/timer/stateMachine';
+import { canDelay, isInDelayWindow, getCurrentCyclePrimary } from './src/timer/worryTimeWindow';
 import { handleNfcTagEntry } from './src/nfc/nfcEntry';
 import { GlobalToastHost } from './src/components/GlobalToast';
 import type { RootStackParamList } from './src/navigation/types';
@@ -43,14 +44,19 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 /**
  * 알림 응답 처리 (액션 버튼 / 일반 탭)
  *
- * 모든 액션에서 먼저 현재 사이클 state 를 확인:
- *   - locked / completed (걱정타임 종료) → WorryTimeEnded 모달
- *   - 그 외 → action 별 분기
- *     · DELAY    → DelayConfirm
- *     · START_NOW → Home
- *     · default  → Home
+ * 우선순위 분기:
+ *   1) cycleEnded (locked/completed/missed) → "오늘의 걱정타임이 끝났어요" 모달 (figma 613:594)
+ *   2) inProgress / advanced (타이머 진행 중) → WorryTime 화면으로 복귀
+ *   3) action 별 분기
+ *      · DELAY    → 3중 검증 (active + canDelay + delayWindow) 통과 시 DelayConfirm
+ *                  실패 시 → "오늘의 걱정타임이 끝났어요" 모달 (액션 유효 윈도우 종료)
+ *      · START_NOW → active 일 때만 Home / 그 외 → "오늘의 걱정타임이 끝났어요" 모달
+ *      · default  → Home
  *
- * 이전 알림을 늦게 탭한 케이스 (잠금 후 미루기 누름 등) 도 자연스럽게 처리됨.
+ * NotWorryTime 모달 ("지금은 걱정타임이 아니에요!") 은 worryTime 이전에 앞당기기 진입할 때만 사용.
+ * 알림 액션 검증 실패는 "유효 윈도우가 끝났다" 의미이므로 WorryEnded 모달이 맞음.
+ *
+ * 옛/stale 알림 늦게 탭한 케이스도 자연스럽게 처리됨.
  */
 async function handleNotificationResponse(response: Notifications.NotificationResponse) {
   if (!navigationRef.isReady()) return;
@@ -59,6 +65,8 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
   // 현재 상태 조회 (action 분기 판단용)
   let currentState: ReturnType<typeof resolveState> | null = null;
   let cycleEnded = false;
+  let delayAllowed = false;
+  let delayWindowActive = false;
   try {
     const profile = await getUserProfile();
     if (profile) {
@@ -66,10 +74,24 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
       const now = new Date();
       currentState = resolveState(timerState, now, profile.worryTime);
       cycleEnded = hasTodayCycleEnded(currentState, now, profile.worryTime);
+      // 미루기 가능 여부 — 이미 미루기/앞당기기 사용 시 false → 옛 알림 stale action 차단
+      delayAllowed = canDelay({
+        worryTime: profile.worryTime,
+        isDelayed: timerState.isDelayed,
+        isAdvanced: timerState.isAdvanced,
+        now,
+      });
+      // 미루기 액션 시간 윈도우 — [worryTime+30분, worryTime+90분]
+      //   · 2차 알림 발화 시점부터 lock 시점까지의 1시간만 유효
+      //   · 옛 알림 늦게 탭한 경우 윈도우 밖이면 stale 처리
+      const primaryAlarm = getCurrentCyclePrimary(now, profile.worryTime);
+      delayWindowActive = isInDelayWindow(now, primaryAlarm);
       console.log(
         '[handleNotificationResponse] action=', action,
         'state=', currentState,
         'ended=', cycleEnded,
+        'delayAllowed=', delayAllowed,
+        'delayWindowActive=', delayWindowActive,
       );
     }
   } catch (e) {
@@ -82,10 +104,31 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
     return;
   }
 
-  // 2) action 별 분기
+  // 2) 타이머 진행 중 (inProgress/advanced) → WorryTime 화면으로 복귀
+  //   · 이미 시작한 사용자에게 다시 미루기/시작 모달 띄우면 안 됨
+  if (currentState === 'inProgress' || currentState === 'advanced') {
+    navigationRef.navigate('Home');
+    setTimeout(() => {
+      if (navigationRef.isReady()) {
+        navigationRef.navigate('WorryTime');
+      }
+    }, 150);
+    return;
+  }
+
+  // 3) action 별 분기 — 검증 실패 시 "오늘의 걱정타임이 끝났어요" 모달 (figma 613:594)
+  //    HomeScreen 의 route.params.showWorryEnded 가 true 면 마운트 시 모달 띄움.
+  const showWorryEnded = () => {
+    navigationRef.navigate('Home', { showWorryEnded: true });
+  };
+
   if (action === NOTIF_ACTION.DELAY) {
-    // DELAY 는 active 상태에서만 valid — 그 외 (idle/inProgress 등) 는 stale → 그냥 홈
-    if (currentState === 'active') {
+    // DELAY 는 다음 3개 조건을 모두 만족할 때만 valid:
+    //   1) currentState === 'active' — 사이클 안에 있어야 함
+    //   2) delayAllowed — 미루기/앞당기기 미사용 (canDelay 정책)
+    //   3) delayWindowActive — 2차 알림 발화 ~ lock 사이 (worryTime+30분 ~ worryTime+90분)
+    // 셋 중 하나라도 false → 검증 실패 → "오늘의 걱정타임이 끝났어요" 모달
+    if (currentState === 'active' && delayAllowed && delayWindowActive) {
       navigationRef.navigate('Home');
       setTimeout(() => {
         if (navigationRef.isReady()) {
@@ -93,11 +136,17 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
         }
       }, 150);
     } else {
-      navigationRef.navigate('Home');
+      showWorryEnded();
     }
   } else if (action === NOTIF_ACTION.START_NOW) {
-    navigationRef.navigate('Home');
+    // START_NOW 는 active 상태일 때만 valid — 그 외엔 "오늘의 걱정타임이 끝났어요" 모달
+    if (currentState === 'active') {
+      navigationRef.navigate('Home');
+    } else {
+      showWorryEnded();
+    }
   } else {
+    // 본문 탭 (액션 버튼 X) — 그냥 홈으로
     navigationRef.navigate('Home');
   }
 }
