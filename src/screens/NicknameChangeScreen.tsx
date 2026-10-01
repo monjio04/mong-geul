@@ -18,7 +18,7 @@
 
 import React, { useEffect, useState } from 'react';
 import {
-  View, StyleSheet, TouchableOpacity, TextInput, Alert,
+  View, StyleSheet, TouchableOpacity, TextInput, Alert, useWindowDimensions,
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import ExitIcon from '../../assets/icons/exit.svg';
@@ -33,9 +33,12 @@ type Props = NativeStackScreenProps<RootStackParamList, 'NicknameChange'>;
 
 const MAX_LENGTH = 12;
 const FIGMA_STATUSBAR = 24;
+const HEAD_WIDTH = 270;
+const INPUT_WIDTH = 300;
 
 export default function NicknameChangeScreen({ navigation }: Props) {
   const insets = useSafeAreaInsets();
+  const { width: screenW } = useWindowDimensions();
   const [currentNickname, setCurrentNickname] = useState('');
   const [input, setInput] = useState('');
 
@@ -65,6 +68,12 @@ export default function NicknameChangeScreen({ navigation }: Props) {
   // figma y → 화면 y (status bar baseline 24 빼고 insets.top 보정)
   const adjustTop = (figmaY: number) => (figmaY - FIGMA_STATUSBAR) + insets.top;
 
+  // 가로 위치는 화면 너비 기준으로 계산 (360 에서는 figma 값 30 과 동일)
+  //   head : figma calc(50% - 15) + translateX(-50%) → 중심이 화면 중앙보다 15 왼쪽
+  //   input: 화면 가운데
+  const headLeft = screenW / 2 - 15 - HEAD_WIDTH / 2;
+  const inputLeft = (screenW - INPUT_WIDTH) / 2;
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       {/* exit (x=20, y=65) — figma 226:432 */}
@@ -81,9 +90,9 @@ export default function NicknameChangeScreen({ navigation }: Props) {
         <Text variant="titleMedium">닉네임 변경</Text>
       </View>
 
-      {/* OnboardingHead — figma 217:540 top:131, x=30 (calc(50%-15) translateX -50% → 좌측 30)
+      {/* OnboardingHead — figma 217:540 top:131, calc(50%-15) translateX -50%
           22/600 black + 15/500 darkGray, gap 8 */}
-      <View style={[styles.headWrap, { top: adjustTop(131) }]}>
+      <View style={[styles.headWrap, { top: adjustTop(131), left: headLeft }]}>
         <OnboardingHead
           title="어떤 이름으로 불러드릴까요?"
           subtitle="실명이 아니어도 괜찮아요"
@@ -92,7 +101,7 @@ export default function NicknameChangeScreen({ navigation }: Props) {
 
       {/* input-name — figma 217:538 top:217, center, w 300, h 47
           inner box: bg lightGray200, rounded 8, pl 15 pr 10 */}
-      <View style={[styles.inputBox, { top: adjustTop(217) }]}>
+      <View style={[styles.inputBox, { top: adjustTop(217), left: inputLeft }]}>
         <TextInput
           style={withAppFont(styles.input)}
           value={input}
@@ -139,18 +148,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 
-  // OnboardingHead 위치 — figma calc(50%-15) + translateX(-50%) = left 30 (w 270)
+  // OnboardingHead — left 는 화면 너비로 계산 (headLeft)
   headWrap: {
     position: 'absolute',
-    left: 30,
-    width: 270,
+    width: HEAD_WIDTH,
   },
 
-  // figma 217:538 input-name — 가운데 정렬, w 300, h 47
+  // figma 217:538 input-name — w 300, h 47, left 는 화면 너비로 계산 (inputLeft)
   inputBox: {
     position: 'absolute',
-    left: 30, // (360 - 300) / 2 = 30 (figma 가운데 정렬)
-    width: 300,
+    width: INPUT_WIDTH,
     height: 47,
     backgroundColor: Colors.lightGray200,
     borderRadius: Radii.sm, // 8
