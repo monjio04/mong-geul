@@ -27,7 +27,7 @@ import type { RootStackParamList } from '../navigation/types';
 import { getUserProfile, saveUserProfile } from '../storage/storage';
 import { BottomButton, Text } from '../components/ui';
 import { OnboardingHead } from '../components/OnboardingHead';
-import { Colors, Radii } from '../theme';
+import { Colors, Radii, withAppFont } from '../theme';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'NicknameChange'>;
 
@@ -94,7 +94,7 @@ export default function NicknameChangeScreen({ navigation }: Props) {
           inner box: bg lightGray200, rounded 8, pl 15 pr 10 */}
       <View style={[styles.inputBox, { top: adjustTop(217) }]}>
         <TextInput
-          style={styles.input}
+          style={withAppFont(styles.input)}
           value={input}
           onChangeText={(text) => {
             if (text.length <= MAX_LENGTH) setInput(text);

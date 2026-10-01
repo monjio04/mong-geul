@@ -9,7 +9,7 @@
  *   - medium   : '500'
  *   - semibold : '600'
  *
- * Korean fallback: 'Noto Sans KR'.
+ * 폰트: Pretendard. fontWeight 는 공용 Text 가 굵기별 Pretendard 파일로 변환 (theme/fonts.ts withAppFont).
  */
 
 import type { TextStyle } from 'react-native';

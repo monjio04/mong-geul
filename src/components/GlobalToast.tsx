@@ -17,7 +17,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Text as RNText } from 'react-native';
-import { Colors } from '../theme';
+import { Colors, withAppFont } from '../theme';
 import WarningIcon from '../../assets/icons/warning.svg';
 
 export type ToastVariant = 'default' | 'warning';
@@ -74,14 +74,14 @@ export function GlobalToastHost() {
         // figma 818:906/930 — ! 아이콘 + 텍스트, 콘텐츠 너비
         <View style={styles.warningToast}>
           <WarningIcon width={20} height={20} />
-          <RNText style={styles.text} allowFontScaling={false}>
+          <RNText style={withAppFont(styles.text)} allowFontScaling={false}>
             {payload.message}
           </RNText>
         </View>
       ) : (
         // figma 615:1919 — 텍스트만, w 283
         <View style={styles.toast}>
-          <RNText style={[styles.text, styles.textCenter]} allowFontScaling={false}>
+          <RNText style={withAppFont([styles.text, styles.textCenter])} allowFontScaling={false}>
             {payload.message}
           </RNText>
         </View>

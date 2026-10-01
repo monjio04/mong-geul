@@ -10,7 +10,7 @@ import type { OnboardingStackParamList } from '../../navigation/types';
 import { BottomButton, Text } from '../../components/ui';
 import { ProgressBar } from '../../components/ProgressBar';
 import { OnboardingHead } from '../../components/OnboardingHead';
-import { Colors, Radii, Spacing, Typography, useResponsive } from '../../theme';
+import { Colors, Radii, Spacing, Typography, useResponsive, withAppFont } from '../../theme';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'OnboardingNickname'>;
 
@@ -70,7 +70,7 @@ export default function OnboardingNicknameScreen({ navigation }: Props) {
           {/* 입력 — figma 216:449 input-name left:30, w:300 */}
           <View style={[styles.inputSection, { paddingHorizontal: wp(30), gap: hp(8) }]}>
             <TextInput
-              style={styles.input}
+              style={withAppFont(styles.input)}
               placeholder={randomSuggested}
               placeholderTextColor={Colors.darkGray}
               value={nickname}

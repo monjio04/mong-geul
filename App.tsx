@@ -152,9 +152,12 @@ async function handleNotificationResponse(response: Notifications.NotificationRe
 }
 
 export default function App() {
-  // 커스텀 폰트 로드 — 캐릭터 말풍선 손글씨 (MemomentKkukkukk)
-  //   파일: assets/fonts/MemomentKkukkukk.ttf (key 와 파일명 일치 필요)
+  // 커스텀 폰트 로드 — key 는 src/theme/fonts.ts 의 Fonts 값과 일치해야 함
   const [fontsLoaded] = useFonts({
+    'Pretendard-Regular': require('./assets/fonts/Pretendard-Regular.otf'),
+    'Pretendard-Medium': require('./assets/fonts/Pretendard-Medium.otf'),
+    'Pretendard-SemiBold': require('./assets/fonts/Pretendard-SemiBold.otf'),
+    'Pretendard-Bold': require('./assets/fonts/Pretendard-Bold.otf'),
     MemomentKkukkukk: require('./assets/fonts/MemomentKkukkukk.ttf'),
   });
 
