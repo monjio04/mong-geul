@@ -141,7 +141,7 @@ function WheelColumn<T extends string | number>({
         // figma 사양 — 폰트 사이즈 절대 dp (스케일 X, 다른 화면 폰트와 일관)
         let fontSize = 14;
         let color: string = 'rgba(126, 128, 129, 0.50)';
-        const fontWeight: '500' = '500'; // figma: 모든 글자 Inter Medium
+        const fontWeight: '500' = '500';
 
         if (colorMode === 'period') {
           // 오전/오후 — selected 20 black / unselected 18 #d9d9d9
@@ -178,6 +178,7 @@ function WheelColumn<T extends string | number>({
                 letterSpacing: dist === 0 ? -0.48 : 0,
               }}
               allowFontScaling={false}
+              numberOfLines={1}
             >
               {label}
             </Text>
@@ -205,9 +206,9 @@ export function TimePickerSheet({
   const WHEEL_HEIGHT = ITEM_HEIGHT * VISIBLE_ROWS;
   const PAD_HEIGHT = ITEM_HEIGHT * PAD_ROWS;
 
-  // 컬럼 너비: 20px Inter Medium "12"/"오후" 글자 폭 기준
-  const hourW = 22;
-  const minuteW = 22;
+  // 컬럼 너비: Pretendard Medium 기준. 두 자리 숫자 최대 폭 20px=24.1 / 18px=22.5, "오후" 20px=33.6
+  const hourW = 26;
+  const minuteW = 26;
   const periodW = 38;
   const innerGap = 5;   // figma 483:1354 — 시 / : / 분 사이
   const outerGap = 30;  // figma 483:1353 — [시:분] ↔ 오전/오후
