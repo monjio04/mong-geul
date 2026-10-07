@@ -17,6 +17,7 @@ import {
   View,
   StyleSheet,
   TouchableOpacity,
+  Pressable,
   Platform,
   Animated,
   Keyboard,
@@ -91,6 +92,9 @@ export default function MemoScreen({ navigation }: Props) {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
+      {/* 빈 곳 탭 → 키보드 닫기 (메모가 multiline 이라 iOS return 키로는 닫을 수 없음) */}
+      <Pressable style={StyleSheet.absoluteFill} onPress={Keyboard.dismiss} accessible={false} />
+
       {/* 헤더 row — exit (좌) + 타이틀 (가운데) + spacer (우, 정렬 맞춤) */}
       <View style={[styles.header, { paddingTop: headerTop }]}>
         <TouchableOpacity
