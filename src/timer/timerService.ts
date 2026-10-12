@@ -14,17 +14,24 @@ import {
   getTimerState,
   saveTimerState,
   resetTimerState,
+  getDayRecord,
   saveDayRecord,
   resetMemos,
   incrementProgress,
   applyPendingProfile,
   getUserProfile,
 } from '../storage/storage';
-import type { TimerState, DayRecord } from '../storage/types';
+import type { TimerState, DayRecord, UserProfile } from '../storage/types';
 import {
   scheduleCycle,
+  ensureUpcomingCycles,
+  cancelUpcomingCycles,
+  cancelCyclesAfter,
+  cancelLegacyCycleNotifications,
+  getCycleNotifIds,
   cancelCycleNotifications,
   cancelNotifications,
+  type ScheduledIds,
 } from '../notifications/scheduler';
 import {
   getAlarmDateString,
@@ -36,6 +43,33 @@ import {
 import type { WorryTime } from './worryTimeWindow';
 import { pickFlowerType, pickFlowerPosition } from './flowerCycle';
 import { setNfcSession } from '../audio/frog';
+
+const NO_IDS: ScheduledIds = { primaryNotifId: null, secondaryNotifId: null, lockNotifId: null };
+
+const sameTime = (a: WorryTime, b: WorryTime) => a.hour === b.hour && a.minute === b.minute;
+
+/**
+ * 이번 사이클이 끝난 뒤 다음 사이클 알림을 맞춰 둠.
+ *  - 알림 꺼져 있으면 아무것도 예약하지 않음
+ *  - pending 으로 걱정타임 시각이 바뀌었으면 옛 시각으로 미리 예약된 알림을 지우고 새로 예약
+ *  - 다음 사이클부터 UPCOMING_CYCLE_DAYS 일치가 채워져 있도록 보충
+ * 반환: 다음 사이클의 1차/2차 알림 id
+ */
+async function scheduleFromNextCycle(
+  profile: UserProfile | null,
+  prevWorryTime: WorryTime,
+  nextCycleStart: Date,
+): Promise<ScheduledIds> {
+  if (!profile || !profile.notificationsEnabled) return NO_IDS;
+  if (!sameTime(profile.worryTime, prevWorryTime)) await cancelUpcomingCycles();
+  await ensureUpcomingCycles(getNextPrimaryAlarm(nextCycleStart, profile.worryTime));
+  return scheduleCycle(profile.worryTime, nextCycleStart);
+}
+
+function addDaysToDateString(date: string, days: number): string {
+  const [y, m, d] = date.split('-').map(Number);
+  return getAlarmDateString(new Date(y, m - 1, d + days));
+}
 
 // ─── 타이머 시작 ─────────────────────────────────────────
 
@@ -140,7 +174,7 @@ export async function completeTimer(
   const currentCyclePrimary = new Date(cyy, cmm - 1, cdd, worryTime.hour, worryTime.minute);
   const nextCycleStart = getNextCycleStart(currentCyclePrimary);
   const { primaryNotifId, secondaryNotifId, lockNotifId } =
-    await scheduleCycle(effectiveWorryTime, nextCycleStart);
+    await scheduleFromNextCycle(appliedProfile, worryTime, nextCycleStart);
 
   // 5-1. NFC 세션 reset — 다음 세션은 다시 일반 진입으로 시작 (개구리 음원 안 남)
   await setNfcSession(false);
@@ -213,7 +247,7 @@ export async function lockCycle(
   // NFC 세션 reset — 잠금 시점에도 다음 세션은 일반 진입으로 시작
   await setNfcSession(false);
   const { primaryNotifId, secondaryNotifId, lockNotifId } =
-    await scheduleCycle(effectiveWorryTime, nextCycleStart);
+    await scheduleFromNextCycle(appliedProfile, worryTime, nextCycleStart);
 
   const nextPrimary = getNextPrimaryAlarm(nextCycleStart, effectiveWorryTime);
   const nextAlarmDate = getAlarmDateString(nextPrimary);
@@ -269,6 +303,125 @@ export async function recoverStaleSessionIfNeeded(): Promise<void> {
     );
     await lockCycle(state.alarmDate, profile.worryTime);
   }
+}
+
+// ─── 앱 진입 시 사이클 동기화 ──────────────────────────────
+
+let syncing: Promise<void> | null = null;
+
+/**
+ * 앱 시작 / 포그라운드 복귀 / 알림 탭 시 호출. 여러 번 불려도 안전 (동시 호출은 하나로 합침).
+ *
+ * 1) 시작만 하고 안 끝낸 세션 정리 (recoverStaleSessionIfNeeded)
+ * 2) 저장된 사이클(alarmDate)이 지금 사이클보다 과거 = 앱을 열지 않은 채 지나간 날이 있음
+ *    → 기록 없는 날은 빈자리로 기록, pending 설정 적용, 지금 사이클 기준으로 상태 초기화
+ * 3) 앞으로 UPCOMING_CYCLE_DAYS 일치 알림 보충
+ */
+export function syncCycle(): Promise<void> {
+  if (!syncing) {
+    syncing = runSyncCycle()
+      .catch((e) => console.error('[syncCycle] 실패:', e))
+      .finally(() => {
+        syncing = null;
+      });
+  }
+  return syncing;
+}
+
+async function runSyncCycle(): Promise<void> {
+  await recoverStaleSessionIfNeeded();
+
+  let profile = await getUserProfile();
+  if (!profile) return; // 온보딩 전
+  const original = await getTimerState();
+  let state = original;
+  const now = new Date();
+
+  await cancelLegacyCycleNotifications();
+
+  let curDate = getAlarmDateString(getCurrentCyclePrimary(now, profile.worryTime));
+  if (!state.alarmDate) state = { ...state, alarmDate: curDate };
+
+  if (state.alarmDate! < curDate) {
+    // 지나간 사이클 중 기록이 없는 날 = 놓친 날 → 빈자리
+    let date = state.alarmDate!;
+    let isFirst = true;
+    while (date < curDate) {
+      if (!(await getDayRecord(date))) {
+        await saveDayRecord(date, {
+          status: 'empty',
+          completedAt: null,
+          isDelayed: isFirst && state.isDelayed,
+          isAdvanced: false,
+        });
+      }
+      date = addDaysToDateString(date, 1);
+      isFirst = false;
+    }
+
+    // 사이클이 바뀌었으니 pending 설정 적용 (completeTimer / lockCycle 과 동일)
+    const prevWorryTime = profile.worryTime;
+    profile = (await applyPendingProfile()) ?? profile;
+    if (!sameTime(profile.worryTime, prevWorryTime)) await cancelUpcomingCycles();
+    curDate = getAlarmDateString(getCurrentCyclePrimary(now, profile.worryTime));
+
+    if (state.startedAt) {
+      // 지금 사이클에 시작한 세션 — 진행 상태는 그대로 두고 날짜만 맞춤
+      state = { ...state, alarmDate: curDate };
+    } else {
+      await setNfcSession(false);
+      state = {
+        isLocked: false,
+        lockedAt: null,
+        alarmDate: curDate,
+        isDelayed: false,
+        isAdvanced: false,
+        delayedUntil: null,
+        startedAt: null,
+        primaryNotifId: null,
+        secondaryNotifId: null,
+        lockNotifId: null,
+        timerEndNotifId: null,
+      };
+    }
+  }
+
+  if (profile.notificationsEnabled) {
+    // 오늘 사이클이 아직 열려 있으면 오늘부터, 이미 끝났거나 진행/미루기 중이면 내일부터 채움
+    const curPrimary = getCurrentCyclePrimary(now, profile.worryTime);
+    const lockedThisCycle =
+      state.isLocked &&
+      state.lockedAt !== null &&
+      getAlarmDateString(getCurrentCyclePrimary(new Date(state.lockedAt), profile.worryTime)) === curDate;
+    const todayOpen =
+      state.alarmDate === curDate && !lockedThisCycle && !state.isDelayed && !state.startedAt;
+    const firstPrimary = new Date(curPrimary);
+    if (!todayOpen) firstPrimary.setDate(firstPrimary.getDate() + 1);
+    await ensureUpcomingCycles(firstPrimary);
+  }
+
+  // 미루기 중(primaryNotifId 에 미루기 알림 id) / 진행 중이 아니면, 저장된 id 를 실제 예약과 맞춤
+  if (!state.isDelayed && !state.startedAt) {
+    const ids = await getCycleNotifIds(state.alarmDate!);
+    state = { ...state, primaryNotifId: ids.primaryNotifId, secondaryNotifId: ids.secondaryNotifId };
+  }
+
+  if (JSON.stringify(state) !== JSON.stringify(original)) {
+    await saveTimerState(state);
+  }
+}
+
+/**
+ * 설정에서 걱정타임 시각을 pending 으로 바꿨을 때 (오늘 사이클이 아직 안 끝남).
+ * 오늘 알림은 그대로 두고, 내일 사이클부터 미리 예약된 알림을 새 시각으로 교체.
+ * (pending 은 사이클이 끝날 때 적용되는데, 오늘을 놓치면 그 전에 내일 알림이 옛 시각으로 울리므로)
+ */
+export async function reschedulePendingWorryTime(pendingWorryTime: WorryTime): Promise<void> {
+  const profile = await getUserProfile();
+  if (!profile || !profile.notificationsEnabled) return;
+  const curPrimary = getCurrentCyclePrimary(new Date(), profile.worryTime);
+  await cancelCyclesAfter(getAlarmDateString(curPrimary));
+  await ensureUpcomingCycles(getNextPrimaryAlarm(getNextCycleStart(curPrimary), pendingWorryTime));
 }
 
 // ─── 미루기 처리 ─────────────────────────────────────────

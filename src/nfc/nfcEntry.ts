@@ -17,6 +17,7 @@ import { getUserProfile, getTimerState } from '../storage/storage';
 import { setNfcSession } from '../audio/frog';
 import { emitGlobalToast } from '../components/GlobalToast';
 import { navigationRef } from '../../App';
+import { syncCycle } from '../timer/timerService';
 
 // "오후 03:00 에 다시 만나요" 형태로 포맷
 function formatDelayedMessage(delayedUntil: string | null): string {
@@ -37,6 +38,7 @@ function formatDelayedMessage(delayedUntil: string | null): string {
  */
 export async function handleNfcTagEntry(): Promise<void> {
   if (!navigationRef.isReady()) return;
+  await syncCycle();
 
   try {
     const profile = await getUserProfile();

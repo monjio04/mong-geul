@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { LogBox, Linking, View } from 'react-native';
+import { AppState, LogBox, Linking, View } from 'react-native';
 import { NavigationContainer, createNavigationContainerRef } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -15,6 +15,7 @@ import { getTimerState, getUserProfile } from './src/storage/storage';
 import { resolveState, hasTodayCycleEnded } from './src/timer/stateMachine';
 import { canDelay, isInDelayWindow, getCurrentCyclePrimary } from './src/timer/worryTimeWindow';
 import { handleNfcTagEntry } from './src/nfc/nfcEntry';
+import { syncCycle } from './src/timer/timerService';
 import { GlobalToastHost } from './src/components/GlobalToast';
 import type { RootStackParamList } from './src/navigation/types';
 
@@ -61,6 +62,8 @@ export const navigationRef = createNavigationContainerRef<RootStackParamList>();
 async function handleNotificationResponse(response: Notifications.NotificationResponse) {
   if (!navigationRef.isReady()) return;
   const action = response.actionIdentifier;
+  // 며칠 만에 알림으로 들어온 경우 지난 사이클 상태부터 정리
+  await syncCycle();
 
   // 현재 상태 조회 (action 분기 판단용)
   let currentState: ReturnType<typeof resolveState> | null = null;
@@ -184,6 +187,14 @@ export default function App() {
       wait();
     });
 
+    return () => sub.remove();
+  }, []);
+
+  // 백그라운드에서 돌아올 때마다 사이클 정리 + 앞으로의 알림 보충
+  useEffect(() => {
+    const sub = AppState.addEventListener('change', (next) => {
+      if (next === 'active') syncCycle();
+    });
     return () => sub.remove();
   }, []);
 
