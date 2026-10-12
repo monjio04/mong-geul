@@ -26,9 +26,9 @@ import {
   applyPendingProfile,
 } from '../storage/storage';
 import type { UserProfile, WorkerState } from '../storage/types';
-import { scheduleCycle, cancelCycleNotifications } from '../notifications/scheduler';
+import { cancelCycleNotifications, cancelUpcomingCycles } from '../notifications/scheduler';
 import { resolveState } from '../timer/stateMachine';
-import { getNextCycleStart } from '../timer/worryTimeWindow';
+import { syncCycle, reschedulePendingWorryTime } from '../timer/timerService';
 import { Button, Card, Text, Switch } from '../components/ui';
 import { TimePickerSheet } from '../components/TimePickerSheet';
 import { Colors, Radii, Spacing, useResponsive } from '../theme';
@@ -126,33 +126,16 @@ export default function SettingsScreen({ navigation, route }: Props) {
       const applied = await applyPendingProfile();
       if (!applied) return;
 
-      const state = await getTimerState();
-      await cancelCycleNotifications({
-        primaryNotifId: state.primaryNotifId,
-        secondaryNotifId: state.secondaryNotifId,
-        lockNotifId: state.lockNotifId,
-      });
-      if (applied.notificationsEnabled) {
-        // locked/completed = 이번 cycle 끝남. 다음 cycle 부터 적용
-        const { primaryNotifId, secondaryNotifId, lockNotifId } =
-          await scheduleCycle(applied.worryTime, getNextCycleStart(new Date()));
-        await saveTimerState({
-          ...state,
-          primaryNotifId,
-          secondaryNotifId,
-          lockNotifId,
-        });
-      } else {
-        await saveTimerState({
-          ...state,
-          primaryNotifId: null,
-          secondaryNotifId: null,
-          lockNotifId: null,
-        });
-      }
+      // 옛 시각으로 미리 예약된 알림 전부 취소 → syncCycle 이 새 시각으로 다음 cycle 부터 다시 채움
+      //   (locked/completed = 이번 cycle 은 끝났으므로 오늘 알림은 다시 잡지 않음)
+      await cancelUpcomingCycles();
+      await syncCycle();
       setProfile(applied);
+      return;
     }
-    // idle: pending 그대로. 다음 cycle 시작 시 timerService가 applyPending 자동 호출.
+    // idle: pending 그대로 (사이클이 끝날 때 timerService 가 applyPending).
+    //   오늘 알림은 유지하고, 미리 예약된 내일 이후 알림만 새 시각으로 교체.
+    await reschedulePendingWorryTime({ hour, minute });
   };
 
   /**
@@ -182,14 +165,10 @@ export default function SettingsScreen({ navigation, route }: Props) {
 
     const state = await getTimerState();
     if (value) {
-      const { primaryNotifId, secondaryNotifId, lockNotifId } = await scheduleCycle(updated.worryTime);
-      await saveTimerState({
-        ...state,
-        primaryNotifId,
-        secondaryNotifId,
-        lockNotifId,
-      });
+      // 앞으로 14일치 다시 예약 + 저장된 알림 id 갱신
+      await syncCycle();
     } else {
+      await cancelUpcomingCycles();
       await cancelCycleNotifications({
         primaryNotifId: state.primaryNotifId,
         secondaryNotifId: state.secondaryNotifId,

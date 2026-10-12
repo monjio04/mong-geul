@@ -21,6 +21,7 @@ import { Platform } from 'react-native';
 import {
   getNextPrimaryAlarm,
   getSecondaryAlarmTime,
+  getAlarmDateString,
   type WorryTime,
 } from '../timer/worryTimeWindow';
 import { getUserProfile } from '../storage/storage';
@@ -109,7 +110,14 @@ export const NOTIF_TYPE = {
   DELAYED: 'worry_delayed',
 } as const;
 
-// ─── 1사이클 예약 ─────────────────────────────────────────
+// ─── 사이클 예약 ──────────────────────────────────────────
+//
+// 앱을 열지 않아도 알림이 이어지도록 앞으로 UPCOMING_CYCLE_DAYS 일치를 미리 예약.
+// (하루 2개 × 14일 = 28개 — iOS 예약 알림 한도 64개 이내)
+// 각 알림은 data.cycleDate('YYYY-MM-DD', 1차 알림 날짜) 로 어느 사이클 것인지 구분하고,
+// 같은 사이클·같은 종류가 이미 예약돼 있으면 다시 예약하지 않음 (중복 방지).
+
+export const UPCOMING_CYCLE_DAYS = 14;
 
 // 호환성: lockNotifId 필드는 유지 (항상 null)
 export interface ScheduledIds {
@@ -118,44 +126,136 @@ export interface ScheduledIds {
   lockNotifId: string | null;
 }
 
+interface CycleNotifIndex {
+  /** `${type}:${cycleDate}` → notification id */
+  byKey: Map<string, string>;
+  /** cycleDate 태그가 없는 이전 버전의 1차/2차 알림 */
+  legacyIds: string[];
+}
+
+const cycleKey = (type: string, cycleDate: string) => `${type}:${cycleDate}`;
+
+async function getCycleNotifIndex(): Promise<CycleNotifIndex> {
+  const all = await Notifications.getAllScheduledNotificationsAsync();
+  const byKey = new Map<string, string>();
+  const legacyIds: string[] = [];
+  for (const n of all) {
+    const data = n.content.data as { type?: string; cycleDate?: string } | undefined;
+    if (data?.type !== NOTIF_TYPE.PRIMARY && data?.type !== NOTIF_TYPE.SECONDARY) continue;
+    if (data.cycleDate) byKey.set(cycleKey(data.type, data.cycleDate), n.identifier);
+    else legacyIds.push(n.identifier);
+  }
+  return { byKey, legacyIds };
+}
+
+async function getNickname(): Promise<string> {
+  const profile = await getUserProfile();
+  return profile?.nickname ?? '회원';
+}
+
+async function scheduleCycleAt(
+  primaryAlarm: Date,
+  nickname: string,
+  index: CycleNotifIndex,
+): Promise<ScheduledIds> {
+  const cycleDate = getAlarmDateString(primaryAlarm);
+  const primaryKey = cycleKey(NOTIF_TYPE.PRIMARY, cycleDate);
+  const secondaryKey = cycleKey(NOTIF_TYPE.SECONDARY, cycleDate);
+
+  const [primaryId, secondaryId] = await Promise.all([
+    index.byKey.get(primaryKey) ??
+      scheduleAt(primaryAlarm, {
+        title: `${nickname}님, 오늘의 걱정을 꺼내볼 시간이에요`,
+        body: '잠시 정리하고, 다시 일상으로 돌아가요.',
+        data: { type: NOTIF_TYPE.PRIMARY, cycleDate },
+      }),
+    index.byKey.get(secondaryKey) ??
+      scheduleAt(getSecondaryAlarmTime(primaryAlarm), {
+        title: `${nickname}님, 아직 걱정타임을 시작하지 않았어요`,
+        body: '지금 작성하거나, 편한 시간으로 다시 설정할 수 있어요.',
+        data: { type: NOTIF_TYPE.SECONDARY, cycleDate },
+        categoryIdentifier: NOTIF_CATEGORY.WORRY_PROMPT,
+      }),
+  ]);
+  if (primaryId) index.byKey.set(primaryKey, primaryId);
+  if (secondaryId) index.byKey.set(secondaryKey, secondaryId);
+
+  return {
+    primaryNotifId: primaryId,
+    secondaryNotifId: secondaryId,
+    lockNotifId: null, // 호환성 필드, 더 이상 사용 X
+  };
+}
+
 /**
- * 걱정 타임 1사이클 알림 2개 예약 (1차 + 2차)
- * 사용자 nickname 은 storage.getUserProfile() 에서 조회.
+ * 걱정 타임 1사이클 알림 2개 (1차 + 2차) 예약. 이미 예약돼 있으면 기존 id 반환.
  *
  * @param worryTime 알림을 발화할 시각(시/분)
  * @param fromTime 알림 계산 기준 시점 (기본=now).
- *                 completeTimer/lockCycle 호출 시 getNextCycleStart(now) 를 넘겨야
+ *                 completeTimer/lockCycle 호출 시 다음 cycle 시작점을 넘겨야
  *                 "오늘 worryTime 이 미래여도 다음 cycle 로" 스케줄됨.
  */
 export async function scheduleCycle(
   worryTime: WorryTime,
   fromTime?: Date,
 ): Promise<ScheduledIds> {
-  const baseTime = fromTime ?? new Date();
-  const primaryAlarm = getNextPrimaryAlarm(baseTime, worryTime);
-  const secondaryAlarm = getSecondaryAlarmTime(primaryAlarm);
+  const primaryAlarm = getNextPrimaryAlarm(fromTime ?? new Date(), worryTime);
+  const [index, nickname] = await Promise.all([getCycleNotifIndex(), getNickname()]);
+  return scheduleCycleAt(primaryAlarm, nickname, index);
+}
 
-  const profile = await getUserProfile();
-  const nickname = profile?.nickname ?? '회원';
+/**
+ * firstPrimary 사이클부터 days 일치 1차/2차 알림을 채움 (빠진 것만 예약, 지난 시각은 건너뜀).
+ */
+export async function ensureUpcomingCycles(
+  firstPrimary: Date,
+  days: number = UPCOMING_CYCLE_DAYS,
+): Promise<void> {
+  const [index, nickname] = await Promise.all([getCycleNotifIndex(), getNickname()]);
+  const now = new Date();
+  const primary = new Date(firstPrimary);
+  for (let i = 0; i < days; i++) {
+    // 1차·2차 모두 지난 사이클은 건너뜀
+    if (getSecondaryAlarmTime(primary) > now) {
+      await scheduleCycleAt(new Date(primary), nickname, index);
+    }
+    primary.setDate(primary.getDate() + 1);
+  }
+}
 
-  const [primaryId, secondaryId] = await Promise.all([
-    scheduleAt(primaryAlarm, {
-      title: `${nickname}님, 오늘의 걱정을 꺼내볼 시간이에요`,
-      body: '잠시 정리하고, 다시 일상으로 돌아가요.',
-      data: { type: NOTIF_TYPE.PRIMARY as string },
-    }),
-    scheduleAt(secondaryAlarm, {
-      title: `${nickname}님, 아직 걱정타임을 시작하지 않았어요`,
-      body: '지금 작성하거나, 편한 시간으로 다시 설정할 수 있어요.',
-      data: { type: NOTIF_TYPE.SECONDARY as string },
-      categoryIdentifier: NOTIF_CATEGORY.WORRY_PROMPT,
-    }),
-  ]);
+/** 미리 예약된 1차/2차 알림 전부 취소 (걱정타임 시각 변경, 알림 끄기 시) */
+export async function cancelUpcomingCycles(): Promise<void> {
+  const { byKey, legacyIds } = await getCycleNotifIndex();
+  await cancelNotifications([...byKey.values(), ...legacyIds]);
+}
 
+/** cycleDate 가 afterDate 보다 뒤인 사이클의 1차/2차 알림만 취소 (오늘 사이클은 유지) */
+export async function cancelCyclesAfter(afterDate: string): Promise<void> {
+  const { byKey } = await getCycleNotifIndex();
+  const ids = [...byKey.entries()]
+    .filter(([key]) => key.slice(key.indexOf(':') + 1) > afterDate)
+    .map(([, id]) => id);
+  await cancelNotifications(ids);
+}
+
+/**
+ * 이전 버전이 예약한 cycleDate 없는 1차/2차 알림 정리.
+ * 새 방식 알림과 같은 날 중복으로 울리지 않도록, 있으면 취소하고 true 반환.
+ */
+export async function cancelLegacyCycleNotifications(): Promise<boolean> {
+  const { legacyIds } = await getCycleNotifIndex();
+  if (legacyIds.length === 0) return false;
+  await cancelNotifications(legacyIds);
+  return true;
+}
+
+/** 해당 사이클에 예약돼 있는 1차/2차 알림 id (없으면 null) */
+export async function getCycleNotifIds(cycleDate: string): Promise<ScheduledIds> {
+  const { byKey } = await getCycleNotifIndex();
   return {
-    primaryNotifId: primaryId,
-    secondaryNotifId: secondaryId,
-    lockNotifId: null, // 호환성 필드, 더 이상 사용 X
+    primaryNotifId: byKey.get(cycleKey(NOTIF_TYPE.PRIMARY, cycleDate)) ?? null,
+    secondaryNotifId: byKey.get(cycleKey(NOTIF_TYPE.SECONDARY, cycleDate)) ?? null,
+    lockNotifId: null,
   };
 }
 
@@ -198,22 +298,6 @@ export async function cancelCycleNotifications(ids: {
   timerEndNotifId?: string | null;
 }): Promise<void> {
   await cancelNotifications(Object.values(ids));
-}
-
-// ─── 앱 진입 시 재예약 보정 ───────────────────────────────
-
-/**
- * Doze 모드 등으로 예약이 사라진 경우 복구
- */
-export async function reconcileNotifications(worryTime: WorryTime): Promise<void> {
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync();
-  const hasPrimary = scheduled.some(
-    (n) => (n.content.data as any)?.type === NOTIF_TYPE.PRIMARY
-  );
-  if (!hasPrimary) {
-    console.log('[scheduler] 1차 알림이 없어 재예약합니다');
-    await scheduleCycle(worryTime);
-  }
 }
 
 // ─── 내부 헬퍼 ────────────────────────────────────────────
